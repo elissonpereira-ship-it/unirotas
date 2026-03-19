@@ -544,13 +544,13 @@
             // Configura status de digitando do Vendedor
             const chatInput = document.getElementById('chat-input');
             let typingTimeout;
-            chatInput.oninput = () => {
+            chatInput.addEventListener('input', () => {
                 firebase.database.ref(`typing/${uid}/vendor`).set(true);
                 clearTimeout(typingTimeout);
                 typingTimeout = setTimeout(() => {
                     firebase.database.ref(`typing/${uid}/vendor`).set(false);
                 }, 3000);
-            };
+            });
 
             logAuditEvent('Login');
         }
