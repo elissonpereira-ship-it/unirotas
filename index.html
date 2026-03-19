@@ -542,16 +542,16 @@
             });
 
             // Limpa status de digitando ao desconectar
-            firebase.database.ref(`typing/${uid}/vendor`).onDisconnect().set(false);
+            firebase.database().ref(`typing/${uid}/vendor`).onDisconnect().set(false);
 
             // Configura status de digitando do Vendedor
             const chatInput = document.getElementById('chat-input');
             let typingTimeout;
             chatInput.addEventListener('input', () => {
-                firebase.database.ref(`typing/${uid}/vendor`).set(true);
+                firebase.database().ref(`typing/${uid}/vendor`).set(true);
                 clearTimeout(typingTimeout);
                 typingTimeout = setTimeout(() => {
-                    firebase.database.ref(`typing/${uid}/vendor`).set(false);
+                    firebase.database().ref(`typing/${uid}/vendor`).set(false);
                 }, 3000);
             });
 
@@ -714,6 +714,31 @@
             });
         }
 
+        function loadChat() {
+            const user = firebase.auth().currentUser;
+            if (!user) return;
+            const container = document.getElementById('chat-messages');
+            if (chatListener) firebase.database().ref('mensagens/' + user.uid).off('value', chatListener);
+            
+            chatListener = firebase.database().ref('mensagens/' + user.uid).on('value', snap => {
+                const msgs = snap.val();
+                container.innerHTML = '';
+                if (msgs) {
+                    Object.keys(msgs).forEach(id => {
+                        const m = msgs[id];
+                        const bubble = document.createElement('div');
+                        bubble.className = `chat-bubble ${m.sender}`;
+                        bubble.innerHTML = `
+                            <div>${m.text}</div>
+                            <span class="chat-time">${new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        `;
+                        container.appendChild(bubble);
+                    });
+                    container.scrollTop = container.scrollHeight;
+                }
+            });
+        }
+
         async function sendChatMessage() {
             const input = document.getElementById('chat-input');
             const text = input.value.trim();
@@ -723,7 +748,7 @@
             if (!user) return;
             
             // Limpa status ao enviar
-            firebase.database.ref(`typing/${user.uid}/vendor`).set(false);
+            firebase.database().ref(`typing/${user.uid}/vendor`).set(false);
 
             await firebase.database().ref('mensagens/' + user.uid).push({
                 sender: 'vendor',
