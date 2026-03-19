@@ -541,6 +541,9 @@
                 document.getElementById('vendor-typing-indicator').style.display = isTyping ? 'block' : 'none';
             });
 
+            // Limpa status de digitando ao desconectar
+            firebase.database.ref(`typing/${uid}/vendor`).onDisconnect().set(false);
+
             // Configura status de digitando do Vendedor
             const chatInput = document.getElementById('chat-input');
             let typingTimeout;
