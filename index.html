@@ -340,6 +340,7 @@
 
         <!-- Chat Support View -->
         <div id="view-chat" class="view-container hidden" style="background: #0f172a;">
+            <div id="vendor-typing-indicator" style="display:none; padding: 5px 20px; font-size: 0.75rem; color: var(--primary); font-style: italic;">Administrador está digitando...</div>
             <div id="chat-messages" style="flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px;"></div>
             <div class="chat-input-container" style="padding: 15px; padding-bottom: calc(15px + env(safe-area-inset-bottom, 0px)); background: #1e293b; display: flex; gap: 10px; border-top: 1px solid var(--border); position: relative; z-index: 10;">
                 <input type="text" id="chat-input" placeholder="Digite sua mensagem..." style="flex: 1; height: 45px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 25px; padding: 0 20px; color: white; outline: none; font-size: 16px; -webkit-appearance: none; appearance: none;" onkeypress="if(event.key==='Enter') sendChatMessage()" onfocus="setTimeout(() => { const c = document.getElementById('chat-messages'); c.scrollTop = c.scrollHeight; }, 300)">
@@ -527,6 +528,30 @@
 
             initVendedorMap();
             listenForRoute(uid);
+            
+            // Seta status Online ao entrar
+            vendorRef.update({
+                status: 'Online',
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+
+            // Escuta status de digitando do Administrador
+            firebase.database.ref(`typing/${uid}/admin`).on('value', snap => {
+                const isTyping = snap.val();
+                document.getElementById('vendor-typing-indicator').style.display = isTyping ? 'block' : 'none';
+            });
+
+            // Configura status de digitando do Vendedor
+            const chatInput = document.getElementById('chat-input');
+            let typingTimeout;
+            chatInput.oninput = () => {
+                firebase.database.ref(`typing/${uid}/vendor`).set(true);
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    firebase.database.ref(`typing/${uid}/vendor`).set(false);
+                }, 3000);
+            };
+
             logAuditEvent('Login');
         }
 
@@ -694,6 +719,9 @@
             const user = firebase.auth().currentUser;
             if (!user) return;
             
+            // Limpa status ao enviar
+            firebase.database.ref(`typing/${user.uid}/vendor`).set(false);
+
             await firebase.database().ref('mensagens/' + user.uid).push({
                 sender: 'vendor',
                 text: text,
