@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>UniRotas - Vendedor Pro</title>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -16,16 +16,24 @@
             --success: #10b981;
         }
 
-        body {
+        * { box-sizing: border-box; }
+
+        html, body {
+            height: 100%;
+            width: 100%;
             margin: 0;
             padding: 0;
+            overflow: hidden;
+            position: fixed;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        body {
             font-family: 'Segoe UI', Roboto, sans-serif;
             background: var(--bg);
             color: white;
-            height: 100vh;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
         }
 
         /* Menu Lateral */
@@ -333,10 +341,10 @@
         <!-- Chat Support View -->
         <div id="view-chat" class="view-container hidden" style="background: #0f172a;">
             <div id="chat-messages" style="flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px;"></div>
-            <div style="padding: 15px; padding-bottom: calc(15px + env(safe-area-inset-bottom, 0px)); background: #1e293b; display: flex; gap: 10px; border-top: 1px solid var(--border);">
-                <input type="text" id="chat-input" placeholder="Digite sua mensagem..." style="flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 20px; padding: 10px 15px; color: white; outline: none;" onkeypress="if(event.key==='Enter') sendChatMessage()" onfocus="setTimeout(() => { const c = document.getElementById('chat-messages'); c.scrollTop = c.scrollHeight; }, 300)">
-                <button onclick="sendChatMessage()" style="background: var(--primary); border: none; width: 40px; height: 40px; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-                    <i data-lucide="send" size="18"></i>
+            <div class="chat-input-container" style="padding: 15px; padding-bottom: calc(15px + env(safe-area-inset-bottom, 0px)); background: #1e293b; display: flex; gap: 10px; border-top: 1px solid var(--border); position: relative; z-index: 10;">
+                <input type="text" id="chat-input" placeholder="Digite sua mensagem..." style="flex: 1; height: 45px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 25px; padding: 0 20px; color: white; outline: none; font-size: 16px; -webkit-appearance: none; appearance: none;" onkeypress="if(event.key==='Enter') sendChatMessage()" onfocus="setTimeout(() => { const c = document.getElementById('chat-messages'); c.scrollTop = c.scrollHeight; }, 300)">
+                <button onclick="sendChatMessage()" style="background: var(--primary); border: none; width: 45px; height: 45px; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;">
+                    <i data-lucide="send" size="20"></i>
                 </button>
             </div>
         </div>
@@ -374,6 +382,7 @@
         let generatedCode = null, pendingUser = null;
         let currentVendorName = ""; // Variável Global para o nome
         let chatListener = null;
+        let isProcessingAuth = false;
 
         // UI NAVIGATION
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
@@ -406,16 +415,31 @@
         }
 
         async function handleAuth() {
+            if (isProcessingAuth) return;
+            
             const cpf = document.getElementById('user-cpf-input').value.replace(/\D/g, ''); 
             const pass = document.getElementById('user-pass-input').value;
             const name = document.getElementById('user-name-input').value;
             const emailSignup = document.getElementById('user-email-signup-input').value;
+            const btn = document.getElementById('btn-login-action');
 
             if (cpf.length < 11 || pass.length < 6) return alert("CPF ou Senha inválidos.");
 
             const emailFirebase = `${cpf}@unirotas.app`;
+            isProcessingAuth = true;
+            const originalBtnText = btn.innerText;
+            btn.innerText = "Aguarde...";
+            btn.disabled = true;
+
             try {
                 if (isSignupMode) {
+                    if (!name || !emailSignup) {
+                        alert("Preencha nome e e-mail.");
+                        isProcessingAuth = false;
+                        btn.innerText = originalBtnText;
+                        btn.disabled = false;
+                        return;
+                    }
                     generatedCode = Math.floor(100000 + Math.random() * 900000);
                     pendingUser = { cpf, pass, name, emailSignup, emailFirebase };
                     await emailjs.send("service_hutwvma", "template_w2j01ow", {
@@ -426,20 +450,49 @@
                     const res = await firebase.auth().signInWithEmailAndPassword(emailFirebase, pass);
                     enterApp(res.user.uid);
                 }
-            } catch (e) { alert("Falha: " + (e.message || e.text)); }
+            } catch (e) { 
+                alert("Falha: " + (e.message || e.text)); 
+            } finally {
+                isProcessingAuth = false;
+                btn.innerText = originalBtnText;
+                btn.disabled = false;
+            }
         }
 
         async function validateVerifyCode() {
+            if (isProcessingAuth) return;
             const input = document.getElementById('verify-code-input').value;
+            const btn = document.querySelector('#verify-modal .btn');
+
             if (input == generatedCode) {
+                isProcessingAuth = true;
+                const originalText = btn.innerText;
+                btn.innerText = "Processando...";
+                btn.disabled = true;
+
                 try {
-                    const res = await firebase.auth().createUserWithEmailAndPassword(pendingUser.emailFirebase, pendingUser.pass);
+                    let res;
+                    try {
+                        res = await firebase.auth().createUserWithEmailAndPassword(pendingUser.emailFirebase, pendingUser.pass);
+                    } catch (createUserError) {
+                        if (createUserError.code === 'auth/email-already-in-use') {
+                            // Se já existe, tenta logar diretamente
+                            res = await firebase.auth().signInWithEmailAndPassword(pendingUser.emailFirebase, pendingUser.pass);
+                        } else throw createUserError;
+                    }
+
                     await firebase.database().ref('usuarios/' + res.user.uid).set({
                         name: pendingUser.name, cpf: pendingUser.cpf, email: pendingUser.emailSignup, uid: res.user.uid
                     });
                     closeVerifyModal();
                     enterApp(res.user.uid);
-                } catch (e) { alert(e.message); }
+                } catch (e) { 
+                    alert("Erro no cadastro: " + e.message); 
+                } finally {
+                    isProcessingAuth = false;
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                }
             } else alert("Código inválido.");
         }
 
