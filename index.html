@@ -181,6 +181,42 @@
             color: white;
             margin-bottom: 10px;
         }
+
+        /* CHAT STYLES */
+        #chat-messages {
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-bubble {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            position: relative;
+            margin-bottom: 8px;
+            word-wrap: break-word;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .chat-bubble.vendor {
+            align-self: flex-end;
+            background: var(--primary);
+            color: white;
+            border-bottom-right-radius: 2px;
+        }
+        .chat-bubble.admin {
+            align-self: flex-start;
+            background: #334155;
+            color: white;
+            border-bottom-left-radius: 2px;
+        }
+        .chat-time {
+            font-size: 0.6rem;
+            opacity: 0.6;
+            margin-top: 5px;
+            display: block;
+            text-align: right;
+        }
     </style>
 </head>
 
@@ -202,6 +238,10 @@
         <div class="menu-item" onclick="showScreen('map')">
             <i data-lucide="map"></i>
             <span>Visualizar Rota</span>
+        </div>
+        <div class="menu-item" onclick="showScreen('chat')">
+            <i data-lucide="mail"></i>
+            <span>Suporte / Chat</span>
         </div>
         <div class="menu-item" style="margin-top: 40px; color: var(--danger);" onclick="handleLogout()">
             <i data-lucide="log-out"></i>
@@ -273,12 +313,18 @@
             </div>
         </div>
 
-        <!-- Map View -->
-        <div id="view-map" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000;">
-            <button onclick="showScreen('dashboard')" style="position: absolute; top: 20px; left: 20px; z-index: 1010; background: #1e293b; color: white; border: none; padding: 10px; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
-                <i data-lucide="arrow-left"></i>
-            </button>
             <div id="vendedor-map" style="width: 100%; height: 100%; display: block;"></div>
+        </div>
+
+        <!-- Chat Support View -->
+        <div id="view-chat" class="hidden" style="flex: 1; display: flex; flex-direction: column; background: #0f172a;">
+            <div id="chat-messages" style="flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px;"></div>
+            <div style="padding: 15px; background: #1e293b; display: flex; gap: 10px; border-top: 1px solid var(--border);">
+                <input type="text" id="chat-input" placeholder="Digite sua mensagem..." style="flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 20px; padding: 10px 15px; color: white; outline: none;" onkeypress="if(event.key==='Enter') sendChatMessage()">
+                <button onclick="sendChatMessage()" style="background: var(--primary); border: none; width: 40px; height: 40px; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                    <i data-lucide="send" size="18"></i>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -313,19 +359,27 @@
         let isSignupMode = false;
         let generatedCode = null, pendingUser = null;
         let currentVendorName = ""; // Variável Global para o nome
+        let chatListener = null;
 
         // UI NAVIGATION
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
         
         function showScreen(screenId) {
             document.getElementById('sidebar').classList.remove('open');
-            if (screenId === 'dashboard') {
-                document.getElementById('view-dashboard').classList.remove('hidden');
-                document.getElementById('view-map').classList.add('hidden');
-            } else if (screenId === 'map') {
-                document.getElementById('view-dashboard').classList.add('hidden');
-                document.getElementById('view-map').classList.remove('hidden');
+            
+            // Hide all views first
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-map').classList.add('hidden');
+            document.getElementById('view-chat').classList.add('hidden');
+            
+            // Show the requested view
+            document.getElementById('view-' + screenId).classList.remove('hidden');
+
+            // Specific actions for each screen
+            if (screenId === 'map') {
                 if (vMap) google.maps.event.trigger(vMap, 'resize');
+            } else if (screenId === 'chat') {
+                loadChat();
             }
         }
 
@@ -536,6 +590,51 @@
                 name: currentVendorName, // Envia o nome real para o Dashboard
                 timestamp: firebase.database.ServerValue.TIMESTAMP
             });
+        }
+
+        // CHAT LOGIC
+        function loadChat() {
+            const user = firebase.auth().currentUser;
+            if (!user || chatListener) return;
+
+            const chatRef = firebase.database().ref('mensagens/' + user.uid);
+            chatListener = chatRef.limitToLast(50).on('value', snap => {
+                const msgs = snap.val();
+                const container = document.getElementById('chat-messages');
+                container.innerHTML = '';
+                
+                if (msgs) {
+                    Object.keys(msgs).forEach(id => {
+                        const m = msgs[id];
+                        const bubble = document.createElement('div');
+                        bubble.className = `chat-bubble ${m.sender}`;
+                        bubble.innerHTML = `
+                            <div>${m.text}</div>
+                            <span class="chat-time">${new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        `;
+                        container.appendChild(bubble);
+                    });
+                    container.scrollTop = container.scrollHeight;
+                }
+            });
+        }
+
+        async function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+            
+            const user = firebase.auth().currentUser;
+            if (!user) return;
+            
+            await firebase.database().ref('mensagens/' + user.uid).push({
+                sender: 'vendor',
+                text: text,
+                timestamp: firebase.database.ServerValue.TIMESTAMP,
+                read: false
+            });
+            
+            input.value = '';
         }
 
         function logAuditEvent(type) {
