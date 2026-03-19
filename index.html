@@ -256,8 +256,12 @@
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
     <script>
-        // Init EmailJS
-        emailjs.init({ publicKey: "OV-1JMg752txxJaSr" });
+        // Init EmailJS com verificação de carregamento
+        if (typeof emailjs !== 'undefined') {
+            emailjs.init({ publicKey: "OV-1JMg752txxJaSr" });
+        } else {
+            console.error("EmailJS SDK não foi carregado corretamente.");
+        }
 
         const firebaseConfig = {
             apiKey: "AIzaSyD3Mh2iQev84QtQJ96TCdOXS5UFn_OpNAg",
@@ -289,7 +293,10 @@
         }
 
         function initVendedorMap() {
-            vMap = new google.maps.Map(document.getElementById("vendedor-map"), {
+            const mapContainer = document.getElementById("vendedor-map");
+            if (!mapContainer) return;
+
+            vMap = new google.maps.Map(mapContainer, {
                 zoom: 14,
                 center: { lat: -23.5505, lng: -46.6333 },
                 styles: [
@@ -328,6 +335,10 @@
                     document.getElementById('btn-login-action').disabled = true;
                     document.getElementById('btn-login-action').innerText = "ENVIANDO CÓDIGO...";
 
+                    if (typeof emailjs === 'undefined') {
+                        throw new Error("Erro de infraestrutura: EmailJS não carregado.");
+                    }
+
                     await emailjs.send("service_hutwvma", "template_w2j01ow", {
                         user_name: name,
                         user_email: emailSignup,
@@ -342,9 +353,11 @@
                     finalizeLogin(res.user.uid);
                 }
             } catch (e) { 
-                alert("Erro: " + e.message); 
+                console.error("Erro na Auth:", e);
+                const msg = e.message || e.text || (typeof e === 'string' ? e : "Erro desconhecido ao enviar e-mail.");
+                alert("Erro: " + msg); 
                 document.getElementById('btn-login-action').disabled = false;
-                document.getElementById('btn-login-action').innerText = "ACESSAR PAINEL";
+                document.getElementById('btn-login-action').innerText = isSignupMode ? "CONCLUIR CADASTRO" : "ACESSAR PAINEL";
             }
         }
 
@@ -363,7 +376,7 @@
                     closeVerifyModal();
                     finalizeLogin(user.uid);
                 } catch (e) {
-                    alert("Erro ao criar conta: " + e.message);
+                    alert("Erro ao criar conta: " + (e.message || "Falha no Firebase"));
                 }
             } else {
                 alert("Código incorreto. Tente novamente.");
@@ -395,6 +408,8 @@
         function renderRoute(waypoints) {
             const list = document.getElementById('vendedor-route-list');
             const container = document.getElementById('route-list-container');
+            if (!list || !container) return;
+
             list.innerHTML = '';
             container.classList.remove('hidden');
 
