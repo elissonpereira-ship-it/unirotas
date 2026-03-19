@@ -342,6 +342,9 @@
                     await emailjs.send("service_hutwvma", "template_w2j01ow", {
                         user_name: name,
                         user_email: emailSignup,
+                        to_name: name,
+                        to_email: emailSignup,
+                        email: emailSignup,
                         verification_code: generatedCode
                     });
 
