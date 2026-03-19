@@ -75,6 +75,11 @@
             transition: 0.3s;
         }
 
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         .app-screen {
             display: none;
             flex: 1;
@@ -156,10 +161,32 @@
             margin-bottom: 8px;
             font-size: 0.85rem;
         }
+
+        /* Modal de Verificação */
+        #verify-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.95);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
     </style>
 </head>
 
 <body>
+    <!-- VERIFY MODAL -->
+    <div id="verify-modal">
+        <h2 style="color: var(--primary);">Verifique seu E-mail</h2>
+        <p style="text-align: center; opacity: 0.7; font-size: 0.9rem;">Enviamos um código de 6 dígitos para o seu e-mail. Digite-o abaixo para concluir o cadastro.</p>
+        <input type="number" id="verify-code-input" placeholder="000000" style="text-align: center; font-size: 2rem; letter-spacing: 10px; margin: 20px 0; max-width: 250px;">
+        <button class="btn" onclick="validateVerifyCode()" style="max-width: 250px;">VALIDAR CÓDIGO</button>
+        <button onclick="closeVerifyModal()" style="background: none; border: none; color: white; margin-top: 15px; opacity: 0.5;">Cancelar</button>
+    </div>
+
     <!-- LOGIN SCREEN -->
     <div id="login-screen" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 15px; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
         <div class="brand">
@@ -178,6 +205,7 @@
             <h2 id="auth-title" style="color: white; font-weight: 300; text-align: center; margin-bottom: 5px;">Login do Vendedor</h2>
             
             <input type="text" id="user-name-input" placeholder="Seu Nome Completo" class="auth-input hidden">
+            <input type="email" id="user-email-signup-input" placeholder="E-mail (para confirmação)" class="auth-input hidden">
             <input type="text" id="user-cpf-input" placeholder="CPF (apenas números)" class="auth-input">
             <input type="password" id="user-pass-input" placeholder="Senha" class="auth-input">
             
@@ -223,8 +251,14 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    
+    <!-- EmailJS SDK -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
     <script>
+        // Init EmailJS
+        emailjs.init({ publicKey: "OV-1JMg752txxJaSr" });
+
         const firebaseConfig = {
             apiKey: "AIzaSyD3Mh2iQev84QtQJ96TCdOXS5UFn_OpNAg",
             authDomain: "unirotas-e9e9c.firebaseapp.com",
@@ -243,12 +277,15 @@
         let lastLat = 0, lastLon = 0;
         let isSignupMode = false;
         let vMap, vDirectionsRenderer, vDirectionsService;
+        let generatedCode = null;
+        let pendingUser = null;
 
         function toggleAuthMode() {
             isSignupMode = !isSignupMode;
             document.getElementById('auth-title').innerText = isSignupMode ? "Novo Cadastro" : "Login Vendedor";
             document.getElementById('btn-login-action').innerText = isSignupMode ? "CONCLUIR CADASTRO" : "ACESSAR PAINEL";
             document.getElementById('user-name-input').classList.toggle('hidden', !isSignupMode);
+            document.getElementById('user-email-signup-input').classList.toggle('hidden', !isSignupMode);
         }
 
         function initVendedorMap() {
@@ -274,33 +311,78 @@
             const cpf = document.getElementById('user-cpf-input').value.replace(/\D/g, ''); 
             const pass = document.getElementById('user-pass-input').value;
             const name = document.getElementById('user-name-input').value;
+            const emailSignup = document.getElementById('user-email-signup-input').value;
 
-            if (cpf.length < 11 || pass.length < 6) return alert("CPF ou Senha inválidos.");
+            if (cpf.length < 11 || pass.length < 6) return alert("CPF (11 dígitos) ou Senha (mín. 6) inválidos.");
 
-            const email = `${cpf}@unirotas.app`;
+            const emailFirebase = `${cpf}@unirotas.app`;
+            
             try {
-                let user;
                 if (isSignupMode) {
-                    if (!name) return alert("Digite seu nome.");
-                    const res = await firebase.auth().createUserWithEmailAndPassword(email, pass);
-                    user = res.user;
-                    await firebase.database().ref('usuarios/' + user.uid).set({ name, cpf, uid: user.uid });
+                    if (!name || !emailSignup) return alert("Preencha todos os campos.");
+                    
+                    // GERA CÓDIGO E ENVIA E-MAIL
+                    generatedCode = Math.floor(100000 + Math.random() * 900000);
+                    pendingUser = { cpf, pass, name, emailSignup, emailFirebase };
+                    
+                    document.getElementById('btn-login-action').disabled = true;
+                    document.getElementById('btn-login-action').innerText = "ENVIANDO CÓDIGO...";
+
+                    await emailjs.send("service_hutwvma", "template_w2j01ow", {
+                        user_name: name,
+                        user_email: emailSignup,
+                        verification_code: generatedCode
+                    });
+
+                    document.getElementById('verify-modal').style.display = 'flex';
+                    document.getElementById('btn-login-action').disabled = false;
+                    document.getElementById('btn-login-action').innerText = "CONCLUIR CADASTRO";
                 } else {
-                    const res = await firebase.auth().signInWithEmailAndPassword(email, pass);
-                    user = res.user;
+                    const res = await firebase.auth().signInWithEmailAndPassword(emailFirebase, pass);
+                    finalizeLogin(res.user.uid);
                 }
-                
-                // Transição de tela
-                document.getElementById('login-screen').style.display = 'none';
-                document.getElementById('app-screen').style.display = 'flex';
-                
-                // Carregar dados e iniciar ouvintes
-                const snap = await firebase.database().ref('usuarios/' + user.uid).once('value');
-                document.getElementById('vendedor-name').innerText = snap.val()?.name || "Vendedor";
-                
-                initVendedorMap();
-                listenForRoute(user.uid);
-            } catch (e) { alert("Erro: " + e.message); }
+            } catch (e) { 
+                alert("Erro: " + e.message); 
+                document.getElementById('btn-login-action').disabled = false;
+                document.getElementById('btn-login-action').innerText = "ACESSAR PAINEL";
+            }
+        }
+
+        async function validateVerifyCode() {
+            const inputCode = document.getElementById('verify-code-input').value;
+            if (inputCode == generatedCode) {
+                try {
+                    const res = await firebase.auth().createUserWithEmailAndPassword(pendingUser.emailFirebase, pendingUser.pass);
+                    const user = res.user;
+                    await firebase.database().ref('usuarios/' + user.uid).set({ 
+                        name: pendingUser.name, 
+                        cpf: pendingUser.cpf, 
+                        email: pendingUser.emailSignup,
+                        uid: user.uid 
+                    });
+                    closeVerifyModal();
+                    finalizeLogin(user.uid);
+                } catch (e) {
+                    alert("Erro ao criar conta: " + e.message);
+                }
+            } else {
+                alert("Código incorreto. Tente novamente.");
+            }
+        }
+
+        function closeVerifyModal() {
+            document.getElementById('verify-modal').style.display = 'none';
+        }
+
+        async function finalizeLogin(uid) {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-screen').style.display = 'flex';
+            
+            const snap = await firebase.database().ref('usuarios/' + uid).once('value');
+            document.getElementById('vendedor-name').innerText = snap.val()?.name || "Vendedor";
+            
+            initVendedorMap();
+            listenForRoute(uid);
         }
 
         function listenForRoute(uid) {
@@ -352,7 +434,6 @@
         }
 
         function stopTracking() {
-            isTracking = true; // Inativo visualmente
             isTracking = false;
             document.getElementById('btn-toggle-tracking').innerText = "INICIAR EXPEDIENTE";
             document.getElementById('btn-toggle-tracking').style.background = "#BF9A56";
@@ -375,13 +456,7 @@
             lucide.createIcons();
             firebase.auth().onAuthStateChanged(user => {
                 if (user) {
-                    document.getElementById('login-screen').style.display = 'none';
-                    document.getElementById('app-screen').style.display = 'flex';
-                    firebase.database().ref('usuarios/' + user.uid).once('value').then(snap => {
-                        document.getElementById('vendedor-name').innerText = snap.val()?.name || "Vendedor";
-                    });
-                    initVendedorMap();
-                    listenForRoute(user.uid);
+                    finalizeLogin(user.uid);
                 }
             });
         };
