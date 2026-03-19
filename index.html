@@ -267,14 +267,21 @@
         function sendLocationToFirebase(lat, lon, status = "Online") {
             if (typeof firebase === 'undefined') return;
             
-            const vendedorCode = "vendedor_01"; // Idealmente viria do login
+            // Pega o nome do vendedor do localStorage ou gera um temporário
+            let vendedorId = localStorage.getItem('vendedor_id');
+            if (!vendedorId) {
+                vendedorId = 'vd_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('vendedor_id', vendedorId);
+            }
             
-            firebase.database().ref('vendedores/' + vendedorCode).set({
+            const vendedorName = document.getElementById('vendedor-name').innerText;
+            
+            firebase.database().ref('vendedores/' + vendedorId).set({
                 lat: lat,
                 lng: lon,
                 timestamp: new Date().toISOString(),
                 status: status,
-                name: "Admin UniRotas"
+                name: vendedorName
             }).catch(e => console.error("Erro ao enviar para Firebase:", e));
         }
     </script>
