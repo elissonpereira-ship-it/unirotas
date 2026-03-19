@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>UniRotas - Vendedor</title>
+    <title>UniRotas - Vendedor Pro</title>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         :root {
@@ -12,6 +12,8 @@
             --bg: #0f172a;
             --glass: rgba(255, 255, 255, 0.05);
             --border: rgba(255, 255, 255, 0.1);
+            --danger: #ef4444;
+            --success: #10b981;
         }
 
         body {
@@ -23,9 +25,41 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
-            overflow: auto;
+            overflow: hidden;
         }
 
+        /* Menu Lateral */
+        #sidebar {
+            position: fixed;
+            left: -280px;
+            top: 0;
+            width: 280px;
+            height: 100%;
+            background: #1e293b;
+            z-index: 2000;
+            transition: 0.3s ease;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+            padding: 30px 20px;
+            box-sizing: border-box;
+        }
+
+        #sidebar.open { left: 0; }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+            margin-bottom: 10px;
+        }
+
+        .menu-item:hover { background: var(--glass); }
+        .menu-item i { color: var(--primary); }
+
+        /* Telas */
         .login-screen {
             flex: 1;
             display: flex;
@@ -35,30 +69,51 @@
             background: linear-gradient(180deg, #1e293b, #0f172a);
         }
 
-        .brand {
-            text-align: center;
-            margin-bottom: 40px;
+        .app-screen {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 20px;
         }
 
-        .brand h1 {
-            font-size: 2.5rem;
-            margin: 0;
-            letter-spacing: -1px;
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
         }
 
-        .brand span {
-            color: var(--primary);
-        }
-
-        input {
-            width: 100%;
-            padding: 15px;
+        .status-card {
             background: var(--glass);
             border: 1px solid var(--border);
-            border-radius: 12px;
-            color: white;
-            box-sizing: border-box;
-            outline: none;
+            border-radius: 20px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .tracking-indicator {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(191, 154, 86, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px;
+        }
+
+        .tracking-indicator.active {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
         }
 
         .btn {
@@ -68,151 +123,121 @@
             border: none;
             border-radius: 12px;
             font-weight: 700;
-            font-size: 1rem;
             width: 100%;
             cursor: pointer;
-            box-shadow: 0 5px 15px rgba(191, 154, 86, 0.3);
             transition: 0.3s;
         }
 
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+        .btn-checkin {
+            padding: 8px 15px;
+            font-size: 0.75rem;
+            background: var(--success);
+            border-radius: 8px;
+            border: none;
+            color: white;
+            cursor: pointer;
         }
 
-        .app-screen {
-            display: none;
-            flex: 1;
-            padding: 20px;
-            flex-direction: column;
-        }
+        .btn-checkin:disabled { opacity: 0.3; cursor: not-allowed; }
 
-        .header {
+        .route-item {
+            background: var(--glass);
+            padding: 15px;
+            border-radius: 15px;
+            border-left: 4px solid var(--primary);
+            margin-bottom: 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 30px;
         }
 
-        .status-card {
-            background: var(--glass);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 25px;
-            text-align: center;
-            margin-bottom: 20px;
+        #vendedor-map {
+            width: 100%;
+            height: calc(100vh - 100px);
+            border-radius: 0;
+            display: none; /* Escondido por padrão */
         }
 
-        .tracking-indicator {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: rgba(191, 154, 86, 0.1);
-            display: flex;
+        .hidden { display: none !important; }
+
+        #verify-modal {
+            position: fixed;
+            top:0; left:0; right:0; bottom:0;
+            background: rgba(0,0,0,0.9);
+            z-index: 3000;
+            display: none;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 15px;
-        }
-
-        .tracking-indicator.active {
-            background: rgba(0, 255, 136, 0.1);
-            color: #00ff88;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.4); }
-            70% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(0, 255, 136, 0); }
-            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 255, 136, 0); }
+            padding: 30px;
         }
 
         .auth-input {
             width: 100%;
             padding: 12px;
-            border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.1);
             background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
             color: white;
-            box-sizing: border-box;
-            transition: 0.3s;
-        }
-        
-        .auth-input:focus {
-            border-color: var(--primary);
-            outline: none;
-            background: rgba(0,0,0,0.5);
-        }
-
-        .hidden { display: none; }
-        
-        #vendedor-map {
-            width: 100%;
-            height: 300px;
-            border-radius: 20px;
-            margin-top: 20px;
-            border: 2px solid rgba(255,255,255,0.1);
-        }
-
-        .route-item {
-            background: rgba(255,255,255,0.05);
-            padding: 12px;
-            border-radius: 12px;
-            border-left: 4px solid var(--primary);
-            margin-bottom: 8px;
-            font-size: 0.85rem;
-        }
-
-        /* Modal de Verificação */
-        #verify-modal {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(15, 23, 42, 0.95);
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            padding: 20px;
+            margin-bottom: 10px;
         }
     </style>
 </head>
 
 <body>
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+        <div style="text-align: center; margin-bottom: 40px;">
+            <div style="width: 70px; height: 70px; background: var(--primary); border-radius: 50%; margin: 0 auto 10px; display: flex; align-items: center; justify-content: center;">
+                <i data-lucide="user" size="35" color="white"></i>
+            </div>
+            <h4 id="sidebar-user-name" style="margin: 0;">Vendedor</h4>
+            <p style="font-size: 0.7rem; opacity: 0.5;">ID de Acesso Ativo</p>
+        </div>
+
+        <div class="menu-item" onclick="showScreen('dashboard')">
+            <i data-lucide="layout-dashboard"></i>
+            <span>Início / Dashboard</span>
+        </div>
+        <div class="menu-item" onclick="showScreen('map')">
+            <i data-lucide="map"></i>
+            <span>Visualizar Rota</span>
+        </div>
+        <div class="menu-item" style="margin-top: 40px; color: var(--danger);" onclick="handleLogout()">
+            <i data-lucide="log-out"></i>
+            <span>Sair do Aplicativo</span>
+        </div>
+    </div>
+
     <!-- VERIFY MODAL -->
     <div id="verify-modal">
-        <h2 style="color: var(--primary);">Verifique seu E-mail</h2>
-        <p style="text-align: center; opacity: 0.7; font-size: 0.9rem;">Enviamos um código de 6 dígitos para o seu e-mail. Digite-o abaixo para concluir o cadastro.</p>
-        <input type="number" id="verify-code-input" placeholder="000000" style="text-align: center; font-size: 2rem; letter-spacing: 10px; margin: 20px 0; max-width: 250px;">
-        <button class="btn" onclick="validateVerifyCode()" style="max-width: 250px;">VALIDAR CÓDIGO</button>
-        <button onclick="closeVerifyModal()" style="background: none; border: none; color: white; margin-top: 15px; opacity: 0.5;">Cancelar</button>
+        <i data-lucide="mail" size="50" color="var(--primary)"></i>
+        <h2 style="color: var(--primary); margin-top: 15px;">Validar Acesso</h2>
+        <p style="text-align: center; opacity: 0.7; font-size: 0.8rem;">Enviamos um código de segurança para seu e-mail.</p>
+        <input type="number" id="verify-code-input" placeholder="000000" style="text-align: center; font-size: 2rem; background: none; border-bottom: 2px solid var(--primary); width: 200px; color: white; outline: none; margin: 20px 0;">
+        <button class="btn" onclick="validateVerifyCode()">CONFIRMAR CÓDIGO</button>
+        <button onclick="closeVerifyModal()" style="background:none; border:none; color:white; margin-top:20px; opacity:0.4;">Cancelar Cadastro</button>
     </div>
 
     <!-- LOGIN SCREEN -->
-    <div id="login-screen" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 15px; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
+    <div id="login-screen" class="login-screen">
         <div class="brand">
-            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#BF9A56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 5px;">
-                <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"></path>
-                <path d="M15 18H9"></path>
-                <path d="M19 18h2a1 1 0 0 0 1-1v-4.2c0-.8-.3-1.5-.9-1.9l-1.9-1.5c-.7-.5-1.5-.7-2.3-.7H15"></path>
-                <circle cx="7" cy="18" r="2"></circle>
-                <circle cx="17" cy="18" r="2"></circle>
-            </svg>
-            <h1 style="font-size: 2.2rem; margin: 0;">Uni<span>Rotas</span></h1>
-            <p style="opacity: 0.5; letter-spacing: 2px; font-size: 0.7rem;">LOGÍSTICA MÓVEL</p>
+            <h1 style="font-size: 2.2rem; margin: 0;">Uni<span style="color: var(--primary);">Rotas</span></h1>
+            <p style="opacity: 0.5; letter-spacing: 2px; font-size: 0.7rem;">INTEGRIDADE LOGÍSTICA</p>
         </div>
 
-        <div id="auth-container" style="width: 85%; max-width: 350px; background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; backdrop-filter: blur(10px); display: flex; flex-direction: column; gap: 10px; border: 1px solid rgba(255,255,255,0.1);">
-            <h2 id="auth-title" style="color: white; font-weight: 300; text-align: center; margin-bottom: 5px;">Login do Vendedor</h2>
+        <div id="auth-container" style="background: rgba(255,255,255,0.03); padding: 30px; border-radius: 20px; border: 1px solid var(--border);">
+            <h2 id="auth-title" style="font-weight: 300; text-align: center; margin-bottom: 20px;">Acesso Restrito</h2>
             
-            <input type="text" id="user-name-input" placeholder="Seu Nome Completo" class="auth-input hidden">
-            <input type="email" id="user-email-signup-input" placeholder="E-mail (para confirmação)" class="auth-input hidden">
-            <input type="text" id="user-cpf-input" placeholder="CPF (apenas números)" class="auth-input">
+            <input type="text" id="user-name-input" placeholder="Nome Completo" class="auth-input hidden">
+            <input type="email" id="user-email-signup-input" placeholder="E-mail de Confirmação" class="auth-input hidden">
+            <input type="text" id="user-cpf-input" placeholder="CPF do Vendedor" class="auth-input">
             <input type="password" id="user-pass-input" placeholder="Senha" class="auth-input">
             
-            <button id="btn-login-action" class="btn" onclick="handleAuth()">ACESSAR PAINEL</button>
+            <button id="btn-login-action" class="btn" onclick="handleAuth()">ENTRAR NO SISTEMA</button>
             
-            <div style="text-align: center; margin-top: 10px;">
-                <a href="#" id="link-toggle-auth" onclick="toggleAuthMode()" style="color: #BF9A56; font-size: 0.8rem; text-decoration: none;">Não tem conta? Cadastre-se aqui</a>
+            <div style="text-align: center; margin-top: 15px;">
+                <a href="#" id="link-toggle-auth" onclick="toggleAuthMode()" style="color: var(--primary); font-size: 0.8rem; text-decoration: none;">Solicitar novo cadastro</a>
             </div>
         </div>
     </div>
@@ -220,29 +245,40 @@
     <!-- APP SCREEN -->
     <div id="app-screen" class="app-screen">
         <div class="header">
-            <h3>Painel de Vendas</h3>
-            <span id="vendedor-name" style="color: var(--primary); font-weight: 600;">Carregando...</span>
+            <button onclick="toggleSidebar()" style="background: none; border: none; color: white; cursor: pointer;">
+                <i data-lucide="menu"></i>
+            </button>
+            <h4 style="margin: 0;">UniRotas Smart</h4>
+            <div style="width: 24px;"></div> <!-- Spacer -->
         </div>
 
-        <div class="status-card">
-            <div id="status-icon" class="tracking-indicator">
-                <i data-lucide="map-pin"></i>
+        <!-- Dashboard View -->
+        <div id="view-dashboard">
+            <div class="status-card">
+                <div id="status-icon" class="tracking-indicator">
+                    <i data-lucide="navigation"></i>
+                </div>
+                <h3 id="status-text" style="margin: 5px 0; font-size: 1rem;">Expediente Inativo</h3>
+                <p id="coords-text" style="font-size: 0.65rem; opacity: 0.5;">GPS: --, --</p>
+                <div id="accuracy-warning" class="hidden" style="color: var(--danger); font-size: 0.7rem; margin-top: 5px;">
+                    <i data-lucide="alert-triangle" size="12"></i> Precisão baixa (Possível Simulador)
+                </div>
             </div>
-            <h2 id="status-text" style="font-size: 1.2rem; margin: 10px 0;">Expediente Inativo</h2>
-            <p id="coords-text" style="font-size: 0.75rem; opacity: 0.5;">GPS em espera...</p>
+
+            <button id="btn-toggle-tracking" class="btn" onclick="toggleTracking()" style="margin-bottom: 25px;">INICIAR RASTREAMENTO</button>
+
+            <div id="route-list-container" class="hidden">
+                <h4 style="color: var(--primary); margin-bottom: 15px;">Roteiro de Atendimento</h4>
+                <div id="vendedor-route-list"></div>
+            </div>
         </div>
 
-        <button id="btn-toggle-tracking" class="btn" onclick="toggleTracking()">INICIAR EXPEDIENTE</button>
-
-        <div id="vendedor-map"></div>
-        
-        <div id="route-list-container" class="hidden" style="margin-top: 25px;">
-            <h3 style="color: var(--primary); font-size: 1.1rem; margin-bottom: 15px;">Seu Roteiro de Hoje:</h3>
-            <div id="vendedor-route-list"></div>
-        </div>
-
-        <div style="margin-top: 30px; text-align: center; opacity: 0.4; font-size: 0.7rem; padding-bottom: 20px;">
-            UniRotas Trade Marketing v1.2
+        <!-- Map View -->
+        <div id="view-map" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000;">
+            <button onclick="showScreen('dashboard')" style="position: absolute; top: 20px; left: 20px; z-index: 1010; background: #1e293b; color: white; border: none; padding: 10px; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+                <i data-lucide="arrow-left"></i>
+            </button>
+            <div id="vendedor-map" style="width: 100%; height: 100%; display: block;"></div>
         </div>
     </div>
 
@@ -251,17 +287,10 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    
-    <!-- EmailJS SDK -->
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
     <script>
-        // Init EmailJS com verificação de carregamento
-        if (typeof emailjs !== 'undefined') {
-            emailjs.init({ publicKey: "OV-1JMg752txxJaSr" });
-        } else {
-            console.error("EmailJS SDK não foi carregado corretamente.");
-        }
+        emailjs.init({ publicKey: "OV-1JMg752txxJaSr" });
 
         const firebaseConfig = {
             apiKey: "AIzaSyD3Mh2iQev84QtQJ96TCdOXS5UFn_OpNAg",
@@ -278,40 +307,33 @@
 
         let isTracking = false;
         let watchId = null;
-        let lastLat = 0, lastLon = 0;
-        let isSignupMode = false;
+        let lastLat = 0, lastLon = 0, lastTime = 0;
         let vMap, vDirectionsRenderer, vDirectionsService;
-        let generatedCode = null;
-        let pendingUser = null;
+        let currentRoute = [];
+        let isSignupMode = false;
+        let generatedCode = null, pendingUser = null;
 
-        function toggleAuthMode() {
-            isSignupMode = !isSignupMode;
-            document.getElementById('auth-title').innerText = isSignupMode ? "Novo Cadastro" : "Login Vendedor";
-            document.getElementById('btn-login-action').innerText = isSignupMode ? "CONCLUIR CADASTRO" : "ACESSAR PAINEL";
-            document.getElementById('user-name-input').classList.toggle('hidden', !isSignupMode);
-            document.getElementById('user-email-signup-input').classList.toggle('hidden', !isSignupMode);
+        // UI NAVIGATION
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+        
+        function showScreen(screenId) {
+            document.getElementById('sidebar').classList.remove('open');
+            if (screenId === 'dashboard') {
+                document.getElementById('view-dashboard').classList.remove('hidden');
+                document.getElementById('view-map').classList.add('hidden');
+            } else if (screenId === 'map') {
+                document.getElementById('view-dashboard').classList.add('hidden');
+                document.getElementById('view-map').classList.remove('hidden');
+                if (vMap) google.maps.event.trigger(vMap, 'resize');
+            }
         }
 
-        function initVendedorMap() {
-            const mapContainer = document.getElementById("vendedor-map");
-            if (!mapContainer) return;
-
-            vMap = new google.maps.Map(mapContainer, {
-                zoom: 14,
-                center: { lat: -23.5505, lng: -46.6333 },
-                styles: [
-                    { "elementType": "geometry", "stylers": [{ "color": "#242f3e" }] },
-                    { "elementType": "labels.text.fill", "stylers": [{ "color": "#746855" }] },
-                    { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#38414e" }] },
-                    { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#17263c" }] }
-                ],
-                disableDefaultUI: true
-            });
-            vDirectionsService = new google.maps.DirectionsService();
-            vDirectionsRenderer = new google.maps.DirectionsRenderer({
-                map: vMap,
-                polylineOptions: { strokeColor: "#BF9A56", strokeWeight: 6, strokeOpacity: 0.9 }
-            });
+        // AUTH LOGIC
+        function toggleAuthMode() {
+            isSignupMode = !isSignupMode;
+            document.getElementById('auth-title').innerText = isSignupMode ? "Cadastro Vendedor" : "Acesso Restrito";
+            document.getElementById('user-name-input').classList.toggle('hidden', !isSignupMode);
+            document.getElementById('user-email-signup-input').classList.toggle('hidden', !isSignupMode);
         }
 
         async function handleAuth() {
@@ -320,116 +342,125 @@
             const name = document.getElementById('user-name-input').value;
             const emailSignup = document.getElementById('user-email-signup-input').value;
 
-            if (cpf.length < 11 || pass.length < 6) return alert("CPF (11 dígitos) ou Senha (mín. 6) inválidos.");
+            if (cpf.length < 11 || pass.length < 6) return alert("CPF ou Senha inválidos.");
 
             const emailFirebase = `${cpf}@unirotas.app`;
-            
             try {
                 if (isSignupMode) {
-                    if (!name || !emailSignup) return alert("Preencha todos os campos.");
-                    
-                    // GERA CÓDIGO E ENVIA E-MAIL
                     generatedCode = Math.floor(100000 + Math.random() * 900000);
                     pendingUser = { cpf, pass, name, emailSignup, emailFirebase };
-                    
-                    document.getElementById('btn-login-action').disabled = true;
-                    document.getElementById('btn-login-action').innerText = "ENVIANDO CÓDIGO...";
-
-                    if (typeof emailjs === 'undefined') {
-                        throw new Error("Erro de infraestrutura: EmailJS não carregado.");
-                    }
-
                     await emailjs.send("service_hutwvma", "template_w2j01ow", {
-                        user_name: name,
-                        user_email: emailSignup,
-                        to_name: name,
-                        to_email: emailSignup,
-                        email: emailSignup,
-                        verification_code: generatedCode
+                        to_email: emailSignup, verification_code: generatedCode, user_name: name
                     });
-
                     document.getElementById('verify-modal').style.display = 'flex';
-                    document.getElementById('btn-login-action').disabled = false;
-                    document.getElementById('btn-login-action').innerText = "CONCLUIR CADASTRO";
                 } else {
                     const res = await firebase.auth().signInWithEmailAndPassword(emailFirebase, pass);
-                    finalizeLogin(res.user.uid);
+                    enterApp(res.user.uid);
                 }
-            } catch (e) { 
-                console.error("Erro na Auth:", e);
-                const msg = e.message || e.text || (typeof e === 'string' ? e : "Erro desconhecido ao enviar e-mail.");
-                alert("Erro: " + msg); 
-                document.getElementById('btn-login-action').disabled = false;
-                document.getElementById('btn-login-action').innerText = isSignupMode ? "CONCLUIR CADASTRO" : "ACESSAR PAINEL";
-            }
+            } catch (e) { alert("Falha: " + (e.message || e.text)); }
         }
 
         async function validateVerifyCode() {
-            const inputCode = document.getElementById('verify-code-input').value;
-            if (inputCode == generatedCode) {
+            const input = document.getElementById('verify-code-input').value;
+            if (input == generatedCode) {
                 try {
                     const res = await firebase.auth().createUserWithEmailAndPassword(pendingUser.emailFirebase, pendingUser.pass);
-                    const user = res.user;
-                    await firebase.database().ref('usuarios/' + user.uid).set({ 
-                        name: pendingUser.name, 
-                        cpf: pendingUser.cpf, 
-                        email: pendingUser.emailSignup,
-                        uid: user.uid 
+                    await firebase.database().ref('usuarios/' + res.user.uid).set({
+                        name: pendingUser.name, cpf: pendingUser.cpf, email: pendingUser.emailSignup, uid: res.user.uid
                     });
                     closeVerifyModal();
-                    finalizeLogin(user.uid);
-                } catch (e) {
-                    alert("Erro ao criar conta: " + (e.message || "Falha no Firebase"));
-                }
-            } else {
-                alert("Código incorreto. Tente novamente.");
-            }
+                    enterApp(res.user.uid);
+                } catch (e) { alert(e.message); }
+            } else alert("Código inválido.");
         }
 
-        function closeVerifyModal() {
-            document.getElementById('verify-modal').style.display = 'none';
+        function closeVerifyModal() { document.getElementById('verify-modal').style.display = 'none'; }
+        
+        function handleLogout() {
+            firebase.auth().signOut().then(() => location.reload());
         }
 
-        async function finalizeLogin(uid) {
+        async function enterApp(uid) {
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('app-screen').style.display = 'flex';
-            
             const snap = await firebase.database().ref('usuarios/' + uid).once('value');
-            document.getElementById('vendedor-name').innerText = snap.val()?.name || "Vendedor";
-            
+            const data = snap.val();
+            document.getElementById('sidebar-user-name').innerText = data?.name || "Vendedor";
             initVendedorMap();
             listenForRoute(uid);
+            logAuditEvent('Login');
+        }
+
+        // LOGISTICS & MAPS
+        function initVendedorMap() {
+            vMap = new google.maps.Map(document.getElementById("vendedor-map"), {
+                zoom: 15, center: { lat: -23.55, lng: -46.63 },
+                styles: [{ "elementType": "geometry", "stylers": [{ "color": "#242f3e" }] }, { "elementType": "labels.text.fill", "stylers": [{ "color": "#746855" }] }, { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#38414e" }] }],
+                disableDefaultUI: true
+            });
+            vDirectionsService = new google.maps.DirectionsService();
+            vDirectionsRenderer = new google.maps.DirectionsRenderer({ map: vMap, polylineOptions: { strokeColor: "#BF9A56", strokeWeight: 5 } });
         }
 
         function listenForRoute(uid) {
             firebase.database().ref('vendedores/' + uid + '/rota').on('value', snap => {
                 const data = snap.val();
-                if (data && data.waypoints) renderRoute(data.waypoints);
+                if (data && data.waypoints) {
+                    currentRoute = data.waypoints;
+                    renderRouteList(data.waypoints);
+                }
             });
         }
 
-        function renderRoute(waypoints) {
+        function renderRouteList(waypoints) {
             const list = document.getElementById('vendedor-route-list');
-            const container = document.getElementById('route-list-container');
-            if (!list || !container) return;
-
+            document.getElementById('route-list-container').classList.remove('hidden');
             list.innerHTML = '';
-            container.classList.remove('hidden');
-
-            const origin = { lat: waypoints[0].lat, lng: waypoints[0].lng };
-            const dest = { lat: waypoints[waypoints.length-1].lat, lng: waypoints[waypoints.length-1].lng };
-            const m = waypoints.slice(1, -1).map(w => ({ location: { lat: w.lat, lng: w.lng }, stopover: true }));
-
-            vDirectionsService.route({ origin, destination: dest, waypoints: m, travelMode: 'DRIVING' }, (res, status) => {
-                if (status === 'OK') vDirectionsRenderer.setDirections(res);
-            });
-
+            
             waypoints.forEach((w, i) => {
                 const item = document.createElement('div');
                 item.className = 'route-item';
-                item.innerHTML = `<strong>${i + 1}. ${w.name}</strong><br><span style="opacity: 0.6; font-size: 0.75rem;">${w.address}</span>`;
+                item.innerHTML = `
+                    <div>
+                        <strong style="display:block;">${i+1}. ${w.name}</strong>
+                        <span style="font-size:0.7rem; opacity:0.6;">${w.address}</span>
+                    </div>
+                    <button class="btn-checkin" onclick="handleCheckIn(${i})">CHECK-IN</button>
+                `;
                 list.appendChild(item);
             });
+
+            // Update Map directions if view-map is requested
+            const origin = { lat: waypoints[0].lat, lng: waypoints[0].lng };
+            const dest = { lat: waypoints[waypoints.length-1].lat, lng: waypoints[waypoints.length-1].lng };
+            const middle = waypoints.slice(1,-1).map(x => ({ location: { lat: x.lat, lng: x.lng }, stopover: true }));
+            vDirectionsService.route({ origin, destination: dest, waypoints: middle, travelMode: 'DRIVING' }, (res, status) => {
+                if (status === 'OK') vDirectionsRenderer.setDirections(res);
+            });
+        }
+
+        // SECURITY & GEOLOCATION
+        function handleCheckIn(index) {
+            const client = currentRoute[index];
+            const dist = calculateDistance(lastLat, lastLon, client.lat, client.lng);
+            
+            if (dist > 100) {
+                alert(`Check-in negado! Você está a ${Math.round(dist)}m de distância. Aproxime-se a menos de 100m do cliente.`);
+            } else {
+                alert(`Visita confirmada em ${client.name}!`);
+                logAuditEvent('Check-in Cliente: ' + client.name);
+                // Aqui você pode marcar como "Concluído" no Firebase
+            }
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // Metros
+            const φ1 = lat1 * Math.PI/180;
+            const φ2 = lat2 * Math.PI/180;
+            const Δφ = (lat2-lat1) * Math.PI/180;
+            const Δλ = (lon2-lon1) * Math.PI/180;
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
         function toggleTracking() {
@@ -440,23 +471,41 @@
         function startTracking() {
             isTracking = true;
             document.getElementById('btn-toggle-tracking').innerText = "ENCERRAR EXPEDIENTE";
-            document.getElementById('btn-toggle-tracking').style.background = "#ef4444";
+            document.getElementById('btn-toggle-tracking').style.background = "var(--danger)";
             document.getElementById('status-icon').classList.add('active');
-            document.getElementById('status-text').innerText = "Rastreando Agora";
+            document.getElementById('status-text').innerText = "Rastreamento Ativo";
+            logAuditEvent('Início Expediente');
 
             watchId = navigator.geolocation.watchPosition(pos => {
-                lastLat = pos.coords.latitude; lastLon = pos.coords.longitude;
-                document.getElementById('coords-text').innerText = `Lat: ${lastLat.toFixed(4)}, Lon: ${lastLon.toFixed(4)}`;
+                const now = Date.now();
+                const currentLat = pos.coords.latitude;
+                const currentLon = pos.coords.longitude;
+                
+                // Validação de "Salto" (Fake GPS simples)
+                if (lastLat !== 0) {
+                    const d = calculateDistance(lastLat, lastLon, currentLat, currentLon);
+                    const dt = (now - lastTime) / 1000; // segundos
+                    const speed = (d / dt) * 3.6; // km/h
+                    if (speed > 160) logAuditEvent('Possível Fake GPS detectado (Alta Velocidade)');
+                }
+
+                // Validação de Mocking (Baseado na precisão)
+                if (pos.coords.accuracy > 100) document.getElementById('accuracy-warning').classList.remove('hidden');
+                else document.getElementById('accuracy-warning').classList.add('hidden');
+
+                lastLat = currentLat; lastLon = currentLon; lastTime = now;
+                document.getElementById('coords-text').innerText = `GPS: ${lastLat.toFixed(4)}, ${lastLon.toFixed(4)}`;
                 sendPos(lastLat, lastLon);
-            }, e => console.error(e), { enableHighAccuracy: true });
+            }, e => logAuditEvent('Erro GPS: ' + e.message), { enableHighAccuracy: true });
         }
 
         function stopTracking() {
             isTracking = false;
-            document.getElementById('btn-toggle-tracking').innerText = "INICIAR EXPEDIENTE";
-            document.getElementById('btn-toggle-tracking').style.background = "#BF9A56";
+            document.getElementById('btn-toggle-tracking').innerText = "INICIAR RASTREAMENTO";
+            document.getElementById('btn-toggle-tracking').style.background = "var(--primary)";
             document.getElementById('status-icon').classList.remove('active');
             document.getElementById('status-text').innerText = "Expediente Inativo";
+            logAuditEvent('Fim Expediente');
             sendPos(lastLat, lastLon, 'Offline');
             if (watchId) navigator.geolocation.clearWatch(watchId);
         }
@@ -464,18 +513,27 @@
         function sendPos(lat, lng, status = "Online") {
             const user = firebase.auth().currentUser;
             if (!user) return;
-            const name = document.getElementById('vendedor-name').innerText;
             firebase.database().ref('vendedores/' + user.uid).update({
-                lat, lng, status, name, timestamp: firebase.database.ServerValue.TIMESTAMP
+                lat, lng, status, timestamp: firebase.database.ServerValue.TIMESTAMP
             });
         }
+
+        function logAuditEvent(type) {
+            const user = firebase.auth().currentUser;
+            if (!user) return;
+            firebase.database().ref('audit_logs/' + user.uid).push({
+                type, timestamp: firebase.database.ServerValue.TIMESTAMP, lat: lastLat, lng: lastLon
+            });
+        }
+
+        // OFFLINE MONITORING
+        window.addEventListener('offline', () => logAuditEvent('Dispositivo Offline (Sem Internet)'));
+        window.addEventListener('online', () => logAuditEvent('Dispositivo Online'));
 
         window.onload = () => {
             lucide.createIcons();
             firebase.auth().onAuthStateChanged(user => {
-                if (user) {
-                    finalizeLogin(user.uid);
-                }
+                if (user) enterApp(user.uid);
             });
         };
     </script>
