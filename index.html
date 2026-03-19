@@ -150,17 +150,18 @@
 </head>
 
 <body>
-    <div id="login-screen" class="login-screen">
+    <div id="login-screen" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 20px; background: var(--bg-dark);">
         <div class="brand">
             <h1>Uni<span>Rotas</span></h1>
-    <div id="login-screen" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 20px;">
-        <img src="assets/logo_empresa.png" alt="Logo" style="width: 150px; margin-bottom: 20px;">
+            <p style="opacity: 0.6; text-align: center;">App do Vendedor</p>
+        </div>
+        <img src="https://v5.lucide.dev/icons/truck.svg" alt="Logo" style="width: 80px; filter: invert(1); margin-bottom: 10px;">
         <h2 style="color: white; font-weight: 300;">VENDEDOR</h2>
-        <input type="text" id="user-name-input" placeholder="Digite seu nome..." style="width: 80%; padding: 12px; border-radius: 8px; border: none; background: rgba(255,255,255,0.1); color: white; text-align: center;">
+        <input type="text" id="user-name-input" placeholder="Digite seu nome..." style="width: 80%; max-width: 300px; padding: 12px; border-radius: 8px; border: none; background: rgba(255,255,255,0.1); color: white; text-align: center;">
         <button class="btn" onclick="login()">ENTRAR NO SISTEMA</button>
     </div>
 
-    <div id="app-screen" class="app-screen">
+    <div id="app-screen" class="app-screen" style="display: none;">
         <div class="header">
             <h3>Monitoramento</h3>
             <span id="vendedor-name" style="color: var(--primary); font-size: 0.9rem;">Admin UniRotas</span>
