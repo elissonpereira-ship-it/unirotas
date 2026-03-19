@@ -312,6 +312,7 @@
         let currentRoute = [];
         let isSignupMode = false;
         let generatedCode = null, pendingUser = null;
+        let currentVendorName = ""; // Variável Global para o nome
 
         // UI NAVIGATION
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
@@ -375,9 +376,17 @@
         }
 
         function closeVerifyModal() { document.getElementById('verify-modal').style.display = 'none'; }
-        
-        function handleLogout() {
-            firebase.auth().signOut().then(() => location.reload());
+               async function handleLogout() {
+            const user = firebase.auth().currentUser;
+            if (user) {
+                // Seta offline manualmente antes de deslogar
+                await firebase.database().ref('vendedores/' + user.uid).update({
+                    status: 'Offline',
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+            }
+            await firebase.auth().signOut();
+            window.location.reload();
         }
 
         async function enterApp(uid) {
@@ -385,7 +394,16 @@
             document.getElementById('app-screen').style.display = 'flex';
             const snap = await firebase.database().ref('usuarios/' + uid).once('value');
             const data = snap.val();
-            document.getElementById('sidebar-user-name').innerText = data?.name || "Vendedor";
+            currentVendorName = data?.name || "Vendedor";
+            document.getElementById('sidebar-user-name').innerText = currentVendorName;
+
+            // Configura status Offline automático ao fechar a aba/perder conexão
+            const vendorRef = firebase.database().ref('vendedores/' + uid);
+            vendorRef.onDisconnect().update({
+                status: 'Offline',
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+
             initVendedorMap();
             listenForRoute(uid);
             logAuditEvent('Login');
@@ -514,7 +532,9 @@
             const user = firebase.auth().currentUser;
             if (!user) return;
             firebase.database().ref('vendedores/' + user.uid).update({
-                lat, lng, status, timestamp: firebase.database.ServerValue.TIMESTAMP
+                lat, lng, status, 
+                name: currentVendorName, // Envia o nome real para o Dashboard
+                timestamp: firebase.database.ServerValue.TIMESTAMP
             });
         }
 
