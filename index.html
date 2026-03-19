@@ -317,9 +317,16 @@
 
             <button id="btn-toggle-tracking" class="btn" onclick="toggleTracking()" style="margin-bottom: 25px;">INICIAR RASTREAMENTO</button>
 
-            <div id="view-map" class="view-container hidden">
-                <div id="vendedor-map" style="width: 100%; height: 100%; display: block;"></div>
+            <div id="route-list-container" class="hidden">
+                <h4 style="color: var(--primary); margin-bottom: 15px;">Roteiro de Atendimento</h4>
+                <div id="vendedor-route-list"></div>
             </div>
+        </div>
+
+        <!-- Map View -->
+        <div id="view-map" class="view-container hidden">
+            <div id="vendedor-map" style="width: 100%; height: 100%; display: block;"></div>
+        </div>
 
         <!-- Chat Support View -->
         <div id="view-chat" class="view-container hidden" style="background: #0f172a;">
