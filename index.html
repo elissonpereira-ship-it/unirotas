@@ -269,6 +269,10 @@
             document.getElementById('btn-toggle-tracking').style.background = "#BF9A56";
             document.getElementById('status-icon').classList.remove('active');
             document.getElementById('status-text').innerText = "Rastreamento Inativo";
+            
+            // Envia status Offline para o dashboard saber
+            sendLocationToFirebase(lastLat, lastLon, 'Offline');
+            
             if (watchId) navigator.geolocation.clearWatch(watchId);
         }
 
