@@ -547,7 +547,7 @@
             // Configura status de digitando do Vendedor
             const chatInput = document.getElementById('chat-input');
             let typingTimeout;
-            chatInput.addEventListener('input', () => {
+            chatInput.addEventListener('keydown', () => {
                 firebase.database().ref(`typing/${uid}/vendor`).set(true);
                 clearTimeout(typingTimeout);
                 typingTimeout = setTimeout(() => {
@@ -688,31 +688,6 @@
         }
 
         // CHAT LOGIC
-        function loadChat() {
-            const user = firebase.auth().currentUser;
-            if (!user || chatListener) return;
-
-            const chatRef = firebase.database().ref('mensagens/' + user.uid);
-            chatListener = chatRef.limitToLast(50).on('value', snap => {
-                const msgs = snap.val();
-                const container = document.getElementById('chat-messages');
-                container.innerHTML = '';
-                
-                if (msgs) {
-                    Object.keys(msgs).forEach(id => {
-                        const m = msgs[id];
-                        const bubble = document.createElement('div');
-                        bubble.className = `chat-bubble ${m.sender}`;
-                        bubble.innerHTML = `
-                            <div>${m.text}</div>
-                            <span class="chat-time">${new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                        `;
-                        container.appendChild(bubble);
-                    });
-                    container.scrollTop = container.scrollHeight;
-                }
-            });
-        }
 
         function loadChat() {
             const user = firebase.auth().currentUser;
