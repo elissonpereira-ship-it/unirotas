@@ -3,7 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>UniRotas - Vendedor Pro</title>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -16,9 +17,12 @@
             --success: #10b981;
         }
 
-        * { box-sizing: border-box; }
+        * {
+            box-sizing: border-box;
+        }
 
-        html, body {
+        html,
+        body {
             height: 100%;
             width: 100%;
             margin: 0;
@@ -46,12 +50,14 @@
             background: #1e293b;
             z-index: 2000;
             transition: 0.3s ease;
-            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
             padding: 30px 20px;
             box-sizing: border-box;
         }
 
-        #sidebar.open { left: 0; }
+        #sidebar.open {
+            left: 0;
+        }
 
         .menu-item {
             display: flex;
@@ -64,8 +70,13 @@
             margin-bottom: 10px;
         }
 
-        .menu-item:hover { background: var(--glass); }
-        .menu-item i { color: var(--primary); }
+        .menu-item:hover {
+            background: var(--glass);
+        }
+
+        .menu-item i {
+            color: var(--primary);
+        }
 
         /* Telas */
         .login-screen {
@@ -82,9 +93,12 @@
             flex: 1;
             flex-direction: column;
             width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
             height: 100%;
             min-height: 0;
             overflow: hidden;
+            position: relative;
         }
 
         .view-container {
@@ -101,16 +115,22 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 0;
         }
 
         .status-card {
-            background: var(--glass);
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01));
             border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 20px;
+            border-radius: 24px;
+            padding: 30px 20px;
             text-align: center;
-            margin-bottom: 20px;
+            margin-top: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
         }
 
         .tracking-indicator {
@@ -131,21 +151,42 @@
         }
 
         @keyframes pulse {
-            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-            70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); }
-            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+            }
+
+            70% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 15px rgba(16, 185, 129, 0);
+            }
+
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+            }
         }
 
         .btn {
-            background: var(--primary);
+            background: linear-gradient(135deg, #a67c00, #c9a227);
             color: white;
-            padding: 15px;
+            padding: 16px;
             border: none;
-            border-radius: 12px;
+            border-radius: 50px;
+            font-size: 0.95rem;
             font-weight: 700;
+            letter-spacing: 1px;
             width: 100%;
             cursor: pointer;
-            transition: 0.3s;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            box-shadow: 0 4px 15px rgba(201, 162, 39, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(201, 162, 39, 0.5);
+            background: linear-gradient(135deg, #b8860b, #d4af37);
         }
 
         .btn-checkin {
@@ -158,7 +199,10 @@
             cursor: pointer;
         }
 
-        .btn-checkin:disabled { opacity: 0.3; cursor: not-allowed; }
+        .btn-checkin:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
 
         .route-item {
             background: var(--glass);
@@ -175,15 +219,21 @@
             width: 100%;
             height: calc(100vh - 100px);
             border-radius: 0;
-            display: none; /* Escondido por padrão */
+            display: none;
+            /* Escondido por padrão */
         }
 
-        .hidden { display: none !important; }
+        .hidden {
+            display: none !important;
+        }
 
         #verify-modal {
             position: fixed;
-            top:0; left:0; right:0; bottom:0;
-            background: rgba(0,0,0,0.9);
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
             z-index: 3000;
             display: none;
             flex-direction: column;
@@ -195,7 +245,7 @@
         .auth-input {
             width: 100%;
             padding: 12px;
-            background: rgba(0,0,0,0.3);
+            background: rgba(0, 0, 0, 0.3);
             border: 1px solid var(--border);
             border-radius: 8px;
             color: white;
@@ -207,6 +257,7 @@
             display: flex;
             flex-direction: column;
         }
+
         .chat-bubble {
             max-width: 80%;
             padding: 10px 15px;
@@ -216,20 +267,23 @@
             position: relative;
             margin-bottom: 8px;
             word-wrap: break-word;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
         }
+
         .chat-bubble.vendor {
             align-self: flex-end;
             background: var(--primary);
             color: white;
             border-bottom-right-radius: 2px;
         }
+
         .chat-bubble.admin {
             align-self: flex-start;
             background: #334155;
             color: white;
             border-bottom-left-radius: 2px;
         }
+
         .chat-time {
             font-size: 0.6rem;
             opacity: 0.6;
@@ -244,7 +298,8 @@
     <!-- SIDEBAR -->
     <div id="sidebar">
         <div style="text-align: center; margin-bottom: 40px;">
-            <div style="width: 70px; height: 70px; background: var(--primary); border-radius: 50%; margin: 0 auto 10px; display: flex; align-items: center; justify-content: center;">
+            <div
+                style="width: 70px; height: 70px; background: var(--primary); border-radius: 50%; margin: 0 auto 10px; display: flex; align-items: center; justify-content: center;">
                 <i data-lucide="user" size="35" color="white"></i>
             </div>
             <h4 id="sidebar-user-name" style="margin: 0;">Vendedor</h4>
@@ -273,31 +328,38 @@
     <div id="verify-modal">
         <i data-lucide="mail" size="50" color="var(--primary)"></i>
         <h2 style="color: var(--primary); margin-top: 15px;">Validar Acesso</h2>
-        <p style="text-align: center; opacity: 0.7; font-size: 0.8rem;">Enviamos um código de segurança para seu e-mail.</p>
-        <input type="number" id="verify-code-input" placeholder="000000" style="text-align: center; font-size: 2rem; background: none; border-bottom: 2px solid var(--primary); width: 200px; color: white; outline: none; margin: 20px 0;">
+        <p style="text-align: center; opacity: 0.7; font-size: 0.8rem;">Enviamos um código de segurança para seu e-mail.
+        </p>
+        <input type="number" id="verify-code-input" placeholder="000000"
+            style="text-align: center; font-size: 2rem; background: none; border-bottom: 2px solid var(--primary); width: 200px; color: white; outline: none; margin: 20px 0;">
         <button class="btn" onclick="validateVerifyCode()">CONFIRMAR CÓDIGO</button>
-        <button onclick="closeVerifyModal()" style="background:none; border:none; color:white; margin-top:20px; opacity:0.4;">Cancelar Cadastro</button>
+        <button onclick="closeVerifyModal()"
+            style="background:none; border:none; color:white; margin-top:20px; opacity:0.4;">Cancelar Cadastro</button>
     </div>
 
     <!-- LOGIN SCREEN -->
     <div id="login-screen" class="login-screen">
-        <div class="brand">
+        <div class="brand" style="text-align: center; margin-bottom: 30px;">
+            <img src="../assets/logo_empresa.png" alt="Company Logo" style="width: 140px; margin-bottom: 15px;">
             <h1 style="font-size: 2.2rem; margin: 0;">Uni<span style="color: var(--primary);">Rotas</span></h1>
-            <p style="opacity: 0.5; letter-spacing: 2px; font-size: 0.7rem;">INTEGRIDADE LOGÍSTICA</p>
+            <p style="opacity: 0.5; letter-spacing: 2px; font-size: 0.7rem; margin-top: 5px;">INTEGRIDADE LOGÍSTICA</p>
         </div>
 
-        <div id="auth-container" style="background: rgba(255,255,255,0.03); padding: 30px; border-radius: 20px; border: 1px solid var(--border);">
+        <div id="auth-container"
+            style="background: rgba(255,255,255,0.03); padding: 30px; border-radius: 20px; border: 1px solid var(--border);">
             <h2 id="auth-title" style="font-weight: 300; text-align: center; margin-bottom: 20px;">Acesso Restrito</h2>
-            
+
             <input type="text" id="user-name-input" placeholder="Nome Completo" class="auth-input hidden">
-            <input type="email" id="user-email-signup-input" placeholder="E-mail de Confirmação" class="auth-input hidden">
+            <input type="email" id="user-email-signup-input" placeholder="E-mail de Confirmação"
+                class="auth-input hidden">
             <input type="text" id="user-cpf-input" placeholder="CPF do Vendedor" class="auth-input">
             <input type="password" id="user-pass-input" placeholder="Senha" class="auth-input">
-            
+
             <button id="btn-login-action" class="btn" onclick="handleAuth()">ENTRAR NO SISTEMA</button>
-            
+
             <div style="text-align: center; margin-top: 15px;">
-                <a href="#" id="link-toggle-auth" onclick="toggleAuthMode()" style="color: var(--primary); font-size: 0.8rem; text-decoration: none;">Solicitar novo cadastro</a>
+                <a href="#" id="link-toggle-auth" onclick="toggleAuthMode()"
+                    style="color: var(--primary); font-size: 0.8rem; text-decoration: none;">Solicitar novo cadastro</a>
             </div>
         </div>
     </div>
@@ -313,19 +375,22 @@
         </div>
 
         <!-- Dashboard View -->
-        <div id="view-dashboard" class="view-container" style="padding: 20px; box-sizing: border-box; overflow-y: auto;">
+        <div id="view-dashboard" class="view-container"
+            style="padding: 20px; box-sizing: border-box; overflow-y: auto;">
             <div class="status-card">
                 <div id="status-icon" class="tracking-indicator">
                     <i data-lucide="navigation"></i>
                 </div>
                 <h3 id="status-text" style="margin: 5px 0; font-size: 1rem;">Expediente Inativo</h3>
                 <p id="coords-text" style="font-size: 0.65rem; opacity: 0.5;">GPS: --, --</p>
-                <div id="accuracy-warning" class="hidden" style="color: var(--danger); font-size: 0.7rem; margin-top: 5px;">
+                <div id="accuracy-warning" class="hidden"
+                    style="color: var(--danger); font-size: 0.7rem; margin-top: 5px;">
                     <i data-lucide="alert-triangle" size="12"></i> Precisão baixa (Possível Simulador)
                 </div>
             </div>
 
-            <button id="btn-toggle-tracking" class="btn" onclick="toggleTracking()" style="margin-bottom: 25px;">INICIAR RASTREAMENTO</button>
+            <button id="btn-toggle-tracking" class="btn" onclick="toggleTracking()" style="margin-bottom: 25px;">INICIAR
+                RASTREAMENTO</button>
 
             <div id="route-list-container" class="hidden">
                 <h4 style="color: var(--primary); margin-bottom: 15px;">Roteiro de Atendimento</h4>
@@ -340,11 +405,20 @@
 
         <!-- Chat Support View -->
         <div id="view-chat" class="view-container hidden" style="background: #0f172a;">
-            <div id="vendor-typing-indicator" style="display:none; padding: 5px 20px; font-size: 0.75rem; color: var(--primary); font-style: italic;">Administrador está digitando...</div>
-            <div id="chat-messages" style="flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px;"></div>
-            <div class="chat-input-container" style="padding: 15px; padding-bottom: calc(15px + env(safe-area-inset-bottom, 0px)); background: #1e293b; display: flex; gap: 10px; border-top: 1px solid var(--border); position: relative; z-index: 10;">
-                <input type="text" id="chat-input" placeholder="Digite sua mensagem..." style="flex: 1; height: 45px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 25px; padding: 0 20px; color: white; outline: none; font-size: 16px; -webkit-appearance: none; appearance: none;" onkeypress="if(event.key==='Enter') sendChatMessage()" onfocus="setTimeout(() => { const c = document.getElementById('chat-messages'); c.scrollTop = c.scrollHeight; }, 300)">
-                <button onclick="sendChatMessage()" style="background: var(--primary); border: none; width: 45px; height: 45px; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;">
+            <div id="vendor-typing-indicator"
+                style="display:none; padding: 5px 20px; font-size: 0.75rem; color: var(--primary); font-style: italic;">
+                Administrador está digitando...</div>
+            <div id="chat-messages"
+                style="flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+            </div>
+            <div class="chat-input-container"
+                style="padding: 15px; padding-bottom: calc(15px + env(safe-area-inset-bottom, 0px)); background: #1e293b; display: flex; gap: 10px; border-top: 1px solid var(--border); position: relative; z-index: 10;">
+                <input type="text" id="chat-input" placeholder="Digite sua mensagem..."
+                    style="flex: 1; height: 45px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 25px; padding: 0 20px; color: white; outline: none; font-size: 16px; -webkit-appearance: none; appearance: none;"
+                    onkeypress="if(event.key==='Enter') sendChatMessage()"
+                    onfocus="setTimeout(() => { const c = document.getElementById('chat-messages'); c.scrollTop = c.scrollHeight; }, 300)">
+                <button onclick="sendChatMessage()"
+                    style="background: var(--primary); border: none; width: 45px; height: 45px; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;">
                     <i data-lucide="send" size="20"></i>
                 </button>
             </div>
@@ -352,7 +426,8 @@
     </div>
 
     <!-- SCRIPTS -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAO46S-g-tbXDg9aljUNajplLQV_3i7c9Q&libraries=places"></script>
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAO46S-g-tbXDg9aljUNajplLQV_3i7c9Q&libraries=places"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
@@ -387,15 +462,15 @@
 
         // UI NAVIGATION
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
-        
+
         function showScreen(screenId) {
             document.getElementById('sidebar').classList.remove('open');
-            
+
             // Hide all views first
             document.getElementById('view-dashboard').classList.add('hidden');
             document.getElementById('view-map').classList.add('hidden');
             document.getElementById('view-chat').classList.add('hidden');
-            
+
             // Show the requested view
             document.getElementById('view-' + screenId).classList.remove('hidden');
 
@@ -417,8 +492,8 @@
 
         async function handleAuth() {
             if (isProcessingAuth) return;
-            
-            const cpf = document.getElementById('user-cpf-input').value.replace(/\D/g, ''); 
+
+            const cpf = document.getElementById('user-cpf-input').value.replace(/\D/g, '');
             const pass = document.getElementById('user-pass-input').value;
             const name = document.getElementById('user-name-input').value;
             const emailSignup = document.getElementById('user-email-signup-input').value;
@@ -451,8 +526,8 @@
                     const res = await firebase.auth().signInWithEmailAndPassword(emailFirebase, pass);
                     enterApp(res.user.uid);
                 }
-            } catch (e) { 
-                alert("Falha: " + (e.message || e.text)); 
+            } catch (e) {
+                alert("Falha: " + (e.message || e.text));
             } finally {
                 isProcessingAuth = false;
                 btn.innerText = originalBtnText;
@@ -487,8 +562,8 @@
                     });
                     closeVerifyModal();
                     enterApp(res.user.uid);
-                } catch (e) { 
-                    alert("Erro no cadastro: " + e.message); 
+                } catch (e) {
+                    alert("Erro no cadastro: " + e.message);
                 } finally {
                     isProcessingAuth = false;
                     btn.innerText = originalText;
@@ -498,7 +573,7 @@
         }
 
         function closeVerifyModal() { document.getElementById('verify-modal').style.display = 'none'; }
-               async function handleLogout() {
+        async function handleLogout() {
             const user = firebase.auth().currentUser;
             if (user) {
                 // Seta offline manualmente antes de deslogar
@@ -528,7 +603,7 @@
 
             initVendedorMap();
             listenForRoute(uid);
-            
+
             // Seta status Online ao entrar
             vendorRef.update({
                 status: 'Online',
@@ -583,13 +658,13 @@
             const list = document.getElementById('vendedor-route-list');
             document.getElementById('route-list-container').classList.remove('hidden');
             list.innerHTML = '';
-            
+
             waypoints.forEach((w, i) => {
                 const item = document.createElement('div');
                 item.className = 'route-item';
                 item.innerHTML = `
                     <div>
-                        <strong style="display:block;">${i+1}. ${w.name}</strong>
+                        <strong style="display:block;">${i + 1}. ${w.name}</strong>
                         <span style="font-size:0.7rem; opacity:0.6;">${w.address}</span>
                     </div>
                     <button class="btn-checkin" onclick="handleCheckIn(${i})">CHECK-IN</button>
@@ -599,8 +674,8 @@
 
             // Update Map directions if view-map is requested
             const origin = { lat: waypoints[0].lat, lng: waypoints[0].lng };
-            const dest = { lat: waypoints[waypoints.length-1].lat, lng: waypoints[waypoints.length-1].lng };
-            const middle = waypoints.slice(1,-1).map(x => ({ location: { lat: x.lat, lng: x.lng }, stopover: true }));
+            const dest = { lat: waypoints[waypoints.length - 1].lat, lng: waypoints[waypoints.length - 1].lng };
+            const middle = waypoints.slice(1, -1).map(x => ({ location: { lat: x.lat, lng: x.lng }, stopover: true }));
             vDirectionsService.route({ origin, destination: dest, waypoints: middle, travelMode: 'DRIVING' }, (res, status) => {
                 if (status === 'OK') vDirectionsRenderer.setDirections(res);
             });
@@ -610,7 +685,7 @@
         function handleCheckIn(index) {
             const client = currentRoute[index];
             const dist = calculateDistance(lastLat, lastLon, client.lat, client.lng);
-            
+
             if (dist > 100) {
                 alert(`Check-in negado! Você está a ${Math.round(dist)}m de distância. Aproxime-se a menos de 100m do cliente.`);
             } else {
@@ -622,12 +697,12 @@
 
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371e3; // Metros
-            const φ1 = lat1 * Math.PI/180;
-            const φ2 = lat2 * Math.PI/180;
-            const Δφ = (lat2-lat1) * Math.PI/180;
-            const Δλ = (lon2-lon1) * Math.PI/180;
-            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2);
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const φ1 = lat1 * Math.PI / 180;
+            const φ2 = lat2 * Math.PI / 180;
+            const Δφ = (lat2 - lat1) * Math.PI / 180;
+            const Δλ = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         }
 
         function toggleTracking() {
@@ -647,7 +722,7 @@
                 const now = Date.now();
                 const currentLat = pos.coords.latitude;
                 const currentLon = pos.coords.longitude;
-                
+
                 // Validação de "Salto" (Fake GPS simples)
                 if (lastLat !== 0) {
                     const d = calculateDistance(lastLat, lastLon, currentLat, currentLon);
@@ -681,7 +756,7 @@
             const user = firebase.auth().currentUser;
             if (!user) return;
             firebase.database().ref('vendedores/' + user.uid).update({
-                lat, lng, status, 
+                lat, lng, status,
                 name: currentVendorName, // Envia o nome real para o Dashboard
                 timestamp: firebase.database.ServerValue.TIMESTAMP
             });
@@ -694,7 +769,7 @@
             if (!user) return;
             const container = document.getElementById('chat-messages');
             if (chatListener) firebase.database().ref('mensagens/' + user.uid).off('value', chatListener);
-            
+
             chatListener = firebase.database().ref('mensagens/' + user.uid).on('value', snap => {
                 const msgs = snap.val();
                 container.innerHTML = '';
@@ -705,7 +780,7 @@
                         bubble.className = `chat-bubble ${m.sender}`;
                         bubble.innerHTML = `
                             <div>${m.text}</div>
-                            <span class="chat-time">${new Date(m.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                            <span class="chat-time">${new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         `;
                         container.appendChild(bubble);
                     });
@@ -718,10 +793,10 @@
             const input = document.getElementById('chat-input');
             const text = input.value.trim();
             if (!text) return;
-            
+
             const user = firebase.auth().currentUser;
             if (!user) return;
-            
+
             // Limpa status ao enviar
             firebase.database().ref(`typing/${user.uid}/vendor`).set(false);
 
@@ -731,7 +806,7 @@
                 timestamp: firebase.database.ServerValue.TIMESTAMP,
                 read: false
             });
-            
+
             input.value = '';
         }
 
@@ -755,4 +830,5 @@
         };
     </script>
 </body>
+
 </html>
