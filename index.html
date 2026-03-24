@@ -1664,7 +1664,13 @@
 
         async function handleLogout() {
             const user = firebase.auth().currentUser;
-            if (user) await firebase.database().ref('vendedores/' + user.uid).update({ status: 'Offline', timestamp: firebase.database.ServerValue.TIMESTAMP });
+            if (user) {
+                await firebase.database().ref('vendedores/' + user.uid).update({
+                    status: 'Offline',
+                    lastActive: firebase.database.ServerValue.TIMESTAMP
+                });
+            }
+            if (isTracking) stopTracking();
             await firebase.auth().signOut();
             window.location.reload();
         }
@@ -1688,8 +1694,12 @@
             document.getElementById('sidebar-user-name').textContent = currentVendorName;
             document.getElementById('sidebar-user-cpf').textContent = data.cpf ? `CPF: ${data.cpf}` : 'ID Ativo';
 
-            firebase.database().ref('vendedores/' + uid).onDisconnect().update({ status: 'Offline', timestamp: firebase.database.ServerValue.TIMESTAMP });
-            firebase.database().ref('vendedores/' + uid).update({ status: 'Online', name: currentVendorName, timestamp: firebase.database.ServerValue.TIMESTAMP });
+            firebase.database().ref('vendedores/' + uid).onDisconnect().update({ status: 'Offline', lastActive: firebase.database.ServerValue.TIMESTAMP });
+            firebase.database().ref('vendedores/' + uid).update({
+                status: 'Online',
+                name: currentVendorName,
+                lastActive: firebase.database.ServerValue.TIMESTAMP
+            });
 
             initVendedorMap();
             listenForRoute(uid);
@@ -1746,7 +1756,7 @@
             const list = document.getElementById('vendedor-route-list');
             document.getElementById('route-list-container').classList.remove('hidden');
             list.innerHTML = '';
-            
+
             // Botão para abrir ROTA COMPLETA no Google Maps
             if (wps.length > 1) {
                 const fullRouteBtn = document.createElement('button');
@@ -1876,7 +1886,7 @@
             showToast('Modo motorista ativado! Adicione as caronas.', 'success');
 
             if (!isTracking) {
-                showToast('Ative o rastreamento para monitorar o percurso!', 'error');
+                startTracking();
             }
         }
 
@@ -2100,12 +2110,12 @@
                 waypoints,
                 travelMode: 'DRIVING',
                 optimizeWaypoints: false
-            }, (r, s) => { 
+            }, (r, s) => {
                 if (s === 'OK') {
                     vDirectionsRenderer.setDirections(r);
                     const btnViewMap = document.querySelector('#route-result-card .btn-route[onclick="openMeetingMap()"]');
                     if (btnViewMap) {
-                        btnViewMap.onclick = () => openFullRouteInMaps([ {lat: driverLat, lng: driverLng}, ...validPoints]);
+                        btnViewMap.onclick = () => openFullRouteInMaps([{ lat: driverLat, lng: driverLng }, ...validPoints]);
                         btnViewMap.innerHTML = `<i data-lucide="map"></i> NAVEGAR NO GOOGLE MAPS`;
                         lucide.createIcons();
                     }
@@ -2130,10 +2140,10 @@
                 endTime: new Date().toLocaleTimeString('pt-BR'),
                 duration: elapsed,
                 totalKm: parseFloat(meetingKm.toFixed(2)),
-                passengers: meetingPassengers.map((p, i) => ({ 
-                    uid: p.uid, 
-                    name: p.name, 
-                    address: p.address, 
+                passengers: meetingPassengers.map((p, i) => ({
+                    uid: p.uid,
+                    name: p.name,
+                    address: p.address,
                     pickedUp: pickupStatus[i],
                     lat: p.lat,
                     lng: p.lng
@@ -2238,13 +2248,13 @@
             if (!waypoints || waypoints.length === 0) return;
             const origin = lastLat !== 0 ? `${lastLat},${lastLon}` : `${waypoints[0].lat},${waypoints[0].lng}`;
             const destination = `${waypoints[waypoints.length - 1].lat},${waypoints[waypoints.length - 1].lng}`;
-            
+
             let wpStr = "";
             if (waypoints.length > 2) {
                 const mids = waypoints.slice(1, -1);
                 wpStr = "&waypoints=" + mids.map(w => `${w.lat},${w.lng}`).join('|');
             }
-            
+
             const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${wpStr}&travelmode=driving`;
             window.open(url, '_blank');
         }
