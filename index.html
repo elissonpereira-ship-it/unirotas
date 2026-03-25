@@ -1987,15 +1987,9 @@
             <div id="meeting-role-select">
                 <div style="margin-bottom: 20px;">
                     <div class="section-title" style="margin-bottom: 6px;">REUNIÃO</div>
-                <div id="meeting-location-selector" style="margin-bottom: 20px;">
-                    <div style="font-size:0.75rem; color:var(--muted); margin-bottom:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">
-                       Selecione sua Reunião de hoje:
-                    </div>
-                    <div id="active-sessions-list">
-                        <div class="empty-state" style="padding:15px; background:rgba(255,255,255,0.03); border-radius:12px; border:1px solid var(--border);">
-                           <p style="font-size:0.8rem; opacity:0.6;">Buscando reuniões ativas...</p>
-                        </div>
-                    </div>
+                <div id="meeting-location-badge" style="font-size:0.8rem;color:var(--muted);margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+                    <i data-lucide="map-pin" style="display:inline;width:12px;height:12px"></i>
+                    <span id="meeting-location-name">Aguardando local definido...</span>
                 </div>
                 </div>
                 <div class="meeting-role-card" onclick="selectRole('passenger')">
@@ -2528,71 +2522,31 @@
             });
         }
 
-        // ── LISTENER DE SESSÕES ATIVAS — NOVO MULTI-LOCAL ────────────────────────
-        let activeSessionsListener = null;
-
+        // ── MEETING LOCATION LISTENER ─────────────────────────────────────────────
         function listenForMeetingLocation() {
-            if (activeSessionsListener) firebase.database().ref('meeting/sessions').off('value', activeSessionsListener);
-
-            activeSessionsListener = firebase.database().ref('meeting/sessions').orderByChild('date').equalTo(new Date().toISOString().split('T')[0]).on('value', snap => {
-                const sessions = snap.val();
-                const container = document.getElementById('active-sessions-list');
+            firebase.database().ref('meeting/config/activeLocation').on('value', snap => {
+                const loc = snap.val();
+                meetingLocationData = loc;
                 const badge = document.getElementById('meeting-alert-card');
 
-                if (!sessions) {
-                    container.innerHTML = `<div class="empty-state" style="border:1px dashed var(--border); padding:15px;"><p style="font-size:0.8rem;">Nenhuma reunião ativa para sua região hoje.</p></div>`;
+                if (loc) {
+                    document.getElementById('meeting-location-name').textContent = loc.name + ' (Local definido)';
+                    const individualDetails = document.getElementById('individual-location-details');
+                    if (individualDetails) {
+                        individualDetails.innerHTML = `<strong style="color:var(--text)">${loc.name}</strong><br><span>${loc.address || 'Endereço não informado'}</span>`;
+                    }
+
+                    // Mostra badge no dashboard
+                    if (badge) {
+                        badge.classList.remove('hidden');
+                        document.getElementById('meeting-alert-location').textContent = loc.name + ' — ' + (loc.address || '');
+                        lucide.createIcons();
+                    }
+                } else {
+                    document.getElementById('meeting-location-name').textContent = 'Aguardando local definido...';
                     if (badge) badge.classList.add('hidden');
-                    return;
-                }
-
-                const sessList = Object.entries(sessions);
-                let html = '';
-                sessList.forEach(([sid, s]) => {
-                    const isSelected = currentSessionId === sid;
-                    html += `
-                    <div class="session-card ${isSelected ? 'selected' : ''}" onclick="selectMeetingSession('${sid}', '${s.locationName}', '${s.address}')" style="
-                        padding:14px; border-radius:14px; margin-bottom:8px; cursor:pointer; transition:all 0.2s;
-                        background: ${isSelected ? 'rgba(191,154,86,0.15)' : 'rgba(255,255,255,0.03)'};
-                        border: 1px solid ${isSelected ? 'var(--gold)' : 'var(--border)'};
-                    ">
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <div style="width:10px; height:10px; border-radius:50%; background:${isSelected ? 'var(--gold)' : 'rgba(255,255,255,0.2)'}"></div>
-                            <div style="flex:1;">
-                                <div style="font-weight:700; font-size:0.9rem; color:${isSelected ? 'var(--gold)' : 'var(--text)'}">${s.locationName}</div>
-                                <div style="font-size:0.7rem; opacity:0.6; margin-top:2px;">${s.address}</div>
-                            </div>
-                        </div>
-                    </div>`;
-                });
-                container.innerHTML = html;
-
-                // Auto-seleciona se houver apenas uma
-                if (sessList.length === 1 && !currentSessionId) {
-                    selectMeetingSession(sessList[0][0], sessList[0][1].locationName, sessList[0][1].address);
-                }
-
-                // Atualiza o badge do dashboard com a última ou selecionada
-                if (badge) {
-                    badge.classList.remove('hidden');
-                    const displaySess = currentSessionId ? sessions[currentSessionId] : Object.values(sessions)[0];
-                    document.getElementById('meeting-alert-location').textContent = displaySess.locationName;
                 }
             });
-        }
-
-        let currentSessionId = null;
-        function selectMeetingSession(sid, name, addr) {
-            currentSessionId = sid;
-            meetingLocationData = { name, address: addr }; // Fallback para lógica antiga
-            
-            // Atualiza UI de local para "Individual"
-            const individualDetails = document.getElementById('individual-location-details');
-            if (individualDetails) {
-                individualDetails.innerHTML = `<strong style="color:var(--text)">${name}</strong><br><span>${addr || 'Endereço não informado'}</span>`;
-            }
-
-            listenForMeetingLocation(); // Refresh UI selector
-            showToast(`Local selecionado: ${name}`, 'success');
         }
 
         async function loadMyMeetingHistory() {
@@ -2739,19 +2693,19 @@
                         `<strong>${notif.driverName}</strong> diz que chegou no seu local.<br>Você embarcou no carro?`,
                         // CONFIRMOU EMBARQUE
                         async () => {
-                            const updateData = { embarkStatus: 'boarded' };
-                            await Promise.all([
-                                firebase.database().ref(`meeting/participants/${uid}`).update(updateData),
-                                firebase.database().ref(`meeting/sessions/${currentSessionId}/participants/${uid}`).update(updateData),
-                                firebase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({ status: 'boarded' })
-                            ]);
+                            await firebase.database().ref(`meeting/participants/${uid}`).update({
+                                embarkStatus: 'boarded'
+                            });
+                            await firebase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({
+                                status: 'boarded' // motorista vê: "A bordo ✓"
+                            });
                             await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
                             document.getElementById('passenger-embark-status').innerHTML = `
-                                <div style="color:var(--success);font-weight:700">✅ Embarque iniciado!</div>
-                                <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">
-                                  Você está no carro de ${notif.driverName}.
-                                </div>
-                            `;
+            <div style="color:var(--success);font-weight:700">✅ Embarque iniciado!</div>
+            <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">
+              Você está no carro de ${notif.driverName}.
+            </div>
+          `;
                             showToast('Embarque confirmado!', 'success');
                         },
                         // NÃO EMBARCOU
@@ -2865,22 +2819,6 @@
 
         function restoreMeetingState(data) {
             currentMeetingRole = data.role;
-            currentSessionId = data.sessionId;
-
-            // Restaura informações da sessão/local
-            if (currentSessionId) {
-                firebase.database().ref(`meeting/sessions/${currentSessionId}`).once('value').then(snap => {
-                    const sess = snap.val();
-                    if (sess) {
-                        meetingLocationData = { name: sess.locationName, address: sess.address };
-                        const individualDetails = document.getElementById('individual-location-details');
-                        if (individualDetails) {
-                            individualDetails.innerHTML = `<strong style="color:var(--text)">${sess.locationName}</strong><br><span>${sess.address || 'Endereço não informado'}</span>`;
-                        }
-                    }
-                });
-            }
-
             if (data.role === 'passenger') {
                 if (data.embarkStatus === 'waiting') showMeetingView('meeting-passenger-waiting');
                 else if (data.driverUid) {
@@ -2918,26 +2856,16 @@
 
         // ── ROLE SELECTION ───────────────────────────────────────────────────────
         async function selectRole(role) {
-            if (!currentSessionId) {
-                showToast('Selecione o local da reunião primeiro.', 'error');
-                return;
-            }
-
             const participantData = {
                 uid: currentVendorUid,
                 name: currentVendorName,
                 role: role,
-                sessionId: currentSessionId,
                 embarkStatus: 'waiting',
                 joinedAt: Date.now()
             };
 
-            // Salva na raiz global (compatibilidade) E dentro da sessão
             try {
-                await Promise.all([
-                    firebase.database().ref(`meeting/participants/${currentVendorUid}`).set(participantData),
-                    firebase.database().ref(`meeting/sessions/${currentSessionId}/participants/${currentVendorUid}`).set(participantData)
-                ]);
+                await firebase.database().ref(`meeting/participants/${currentVendorUid}`).set(participantData);
 
                 currentMeetingRole = role;
                 if (role === 'passenger') {
@@ -3362,23 +3290,20 @@
         }
 
         async function driverConfirmPresence() {
-            if (!currentSessionId) return showToast('Sessão não identificada.', 'error');
-            const data = { 
-                name: currentVendorName, 
-                role: 'driver', 
+            const meetDate = new Date().toISOString().split('T')[0];
+            await firebase.database().ref(`meeting/attendance/${meetDate}/${currentVendorUid}`).set({
+                name: currentVendorName,
+                role: 'driver',
                 confirmedAt: Date.now(),
                 passengers: selectedPassengers.map(p => p.name)
-            };
-
-            try {
-                await Promise.all([
-                    firebase.database().ref(`meeting/sessions/${currentSessionId}/participants/${currentVendorUid}`).update(data),
-                    firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'meeting', presenceConfirmed: true })
-                ]);
-                document.getElementById('btn-driver-confirm-presence').classList.add('hidden');
-                showDriverMeetingInProgress();
-                showToast('Presença confirmada!', 'success');
-            } catch (e) { showToast(e.message, 'error'); }
+            });
+            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({
+                phase: 'meeting',
+                presenceConfirmed: true
+            });
+            document.getElementById('btn-driver-confirm-presence').classList.add('hidden');
+            showDriverMeetingInProgress();
+            showToast('Presença confirmada!', 'success');
         }
 
         function showDriverMeetingInProgress() {
@@ -3471,29 +3396,18 @@
 
         // ── INDIVIDUAL FLOW ──────────────────────────────────────────────────────
         async function individualConfirmPresence() {
-            if (!currentSessionId) return showToast('Selecione a reunião primeiro.', 'error');
-            
-            const data = { 
-                name: currentVendorName, 
-                role: 'individual', 
-                confirmedAt: Date.now(), 
-                latitude: lastLat || null, 
-                longitude: lastLon || null 
-            };
-
-            try {
-                await firebase.database().ref(`meeting/sessions/${currentSessionId}/participants/${currentVendorUid}`).update(data);
-                await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ presenceConfirmed: true });
-                
-                const confEl = document.getElementById('individual-confirmed');
-                const btnEl = document.getElementById('btn-individual-confirm');
-                if (confEl) confEl.classList.remove('hidden');
-                if (btnEl) btnEl.classList.add('hidden');
-                
-                showToast('Presença confirmada!', 'success');
-            } catch (e) {
-                showToast('Erro: ' + e.message, 'error');
-            }
+            const meetDate = new Date().toISOString().split('T')[0];
+            await firebase.database().ref(`meeting/attendance/${meetDate}/${currentVendorUid}`).set({
+                name: currentVendorName,
+                role: 'individual',
+                confirmedAt: Date.now()
+            });
+            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({
+                presenceConfirmed: true
+            });
+            document.getElementById('btn-individual-confirm').classList.add('hidden');
+            document.getElementById('individual-confirmed').classList.remove('hidden');
+            showToast('Presença confirmada!', 'success');
         }
 
         function cancelIndividual() {
