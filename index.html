@@ -1644,6 +1644,10 @@
                 <button class="action-btn info" onclick="openDriverMapRoute(false)">
                     <i data-lucide="map-pin"></i> Ver no Google Maps
                 </button>
+                <button class="action-btn danger" id="btn-cancel-driver-route" onclick="cancelDriverRoute()"
+                    style="margin-top: 8px;">
+                    <i data-lucide="x"></i> Cancelar / Voltar
+                </button>
                 <button id="btn-driver-confirm-presence" class="action-btn gold hidden"
                     onclick="driverConfirmPresence()">
                     <i data-lucide="check-circle"></i> Confirmar Presença na Reunião
@@ -2507,6 +2511,30 @@
                 else { document.getElementById('screen-login').style.display = 'flex'; }
             });
         };
+        async function cancelDriverRoute() {
+            // Notifica cada carona selecionado que o motorista cancelou
+            if (selectedPassengers && selectedPassengers.length > 0) {
+                for (const p of selectedPassengers) {
+                    await firebase.database().ref(`meeting/participants/${p.uid}`).update({
+                        embarkStatus: 'waiting',
+                        driverUid: null
+                    });
+                    await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}/${p.uid}`).remove();
+                }
+            }
+
+            // Remove os dados do motorista no Firebase
+            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
+            await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
+
+            // Reseta o estado local
+            currentMeetingRole = null;
+            selectedPassengers = [];
+
+            showMeetingView('meeting-role-select');
+            showToast('Rota cancelada. Voltando ao menu.', 'error');
+        }
+
     </script>
 </body>
 
