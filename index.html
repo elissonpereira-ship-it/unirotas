@@ -1166,6 +1166,331 @@
             color: var(--muted);
         }
 
+        /* ===== BOTTOM NAV ===== */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            z-index: 200;
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+            backdrop-filter: blur(20px);
+        }
+
+        .bn-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            padding: 8px 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-family: inherit;
+        }
+
+        .bn-item i {
+            width: 22px;
+            height: 22px;
+        }
+
+        .bn-item span {
+            font-size: 0.6rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .bn-item.active {
+            color: var(--gold);
+        }
+
+        .bn-item.active i {
+            filter: drop-shadow(0 0 6px rgba(191, 154, 86, 0.5));
+        }
+
+        .bn-badge {
+            position: absolute;
+            top: 6px;
+            right: calc(50% - 18px);
+            width: 8px;
+            height: 8px;
+            background: var(--danger);
+            border-radius: 50%;
+            border: 2px solid var(--surface);
+        }
+
+        /* Ajusta scroll para não ficar embaixo da bottom nav */
+        .scroll-area {
+            padding-bottom: 80px !important;
+        }
+
+        /* ===== HEADER MELHORADO ===== */
+        .app-header {
+            background: linear-gradient(135deg, var(--surface) 0%, rgba(26, 37, 64, 0.95) 100%);
+            backdrop-filter: blur(20px);
+        }
+
+        .header-greeting {
+            font-size: 0.72rem;
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .header-name {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .header-name span {
+            color: var(--gold);
+        }
+
+        /* ===== DASHBOARD CARDS ===== */
+        .dash-quick-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .dash-qcard {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s;
+        }
+
+        .dash-qcard:active {
+            transform: scale(0.97);
+        }
+
+        .dash-qcard-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .dash-qcard-icon i {
+            width: 18px;
+            height: 18px;
+        }
+
+        .dash-qcard-val {
+            font-size: 1.5rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .dash-qcard-lbl {
+            font-size: 0.65rem;
+            color: var(--muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .dash-qcard::after {
+            content: '';
+            position: absolute;
+            top: -20px;
+            right: -20px;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            opacity: 0.06;
+        }
+
+        .dash-qcard.gold .dash-qcard-icon {
+            background: var(--gold-light);
+            border: 1px solid var(--gold-border);
+        }
+
+        .dash-qcard.gold .dash-qcard-icon i {
+            color: var(--gold);
+        }
+
+        .dash-qcard.gold .dash-qcard-val {
+            color: var(--gold);
+        }
+
+        .dash-qcard.gold::after {
+            background: var(--gold);
+        }
+
+        .dash-qcard.success .dash-qcard-icon {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .dash-qcard.success .dash-qcard-icon i {
+            color: var(--success);
+        }
+
+        .dash-qcard.success .dash-qcard-val {
+            color: var(--success);
+        }
+
+        .dash-qcard.success::after {
+            background: var(--success);
+        }
+
+        .dash-qcard.info .dash-qcard-icon {
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .dash-qcard.info .dash-qcard-icon i {
+            color: var(--info);
+        }
+
+        .dash-qcard.info .dash-qcard-val {
+            color: var(--info);
+        }
+
+        .dash-qcard.danger .dash-qcard-icon {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .dash-qcard.danger .dash-qcard-icon i {
+            color: var(--danger);
+        }
+
+        .dash-qcard.danger .dash-qcard-val {
+            color: var(--danger);
+        }
+
+        /* ===== SHARE LOCATION BTN ===== */
+        .btn-share-loc {
+            width: 100%;
+            padding: 13px;
+            border-radius: 14px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: var(--info);
+            font-family: inherit;
+            font-size: 0.88rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s;
+            margin-bottom: 12px;
+        }
+
+        .btn-share-loc:hover {
+            background: rgba(59, 130, 246, 0.2);
+        }
+
+        /* ===== ANIMAÇÕES DE TELA ===== */
+        @keyframes screenIn {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .scroll-area:not(.hidden) {
+            animation: screenIn 0.25s ease;
+        }
+
+        /* ===== LOGIN MELHORADO ===== */
+        .login-particles {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .login-particle {
+            position: absolute;
+            width: 3px;
+            height: 3px;
+            background: var(--gold);
+            border-radius: 50%;
+            opacity: 0;
+            animation: floatParticle linear infinite;
+        }
+
+        @keyframes floatParticle {
+            0% {
+                opacity: 0;
+                transform: translateY(0) scale(0);
+            }
+
+            10% {
+                opacity: 0.6;
+            }
+
+            90% {
+                opacity: 0.2;
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-100vh) scale(1.5);
+            }
+        }
+
+        /* ===== STATUS CARD MELHORADO ===== */
+        .status-card {
+            background: linear-gradient(145deg, #1a2540, var(--surface)) !important;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        .gps-coords-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 8px;
+            padding: 6px 12px;
+            margin-top: 8px;
+            justify-content: center;
+        }
+
+        /* ===== PULL TO REFRESH ===== */
+        .ptr-indicator {
+            text-align: center;
+            padding: 12px;
+            font-size: 0.75rem;
+            color: var(--muted);
+            display: none;
+        }
+
+        .ptr-indicator.visible {
+            display: block;
+        }
+
         /* ── CHAT VIEW ──────────────────────────── */
         #view-chat {
             flex: 1;
@@ -1362,12 +1687,14 @@
             margin-bottom: 12px;
             animation: fadeIn 0.3s ease-out;
         }
+
         .mh-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
         }
+
         .mh-badge {
             font-size: 0.65rem;
             font-weight: 700;
@@ -1375,11 +1702,38 @@
             border-radius: 20px;
             text-transform: uppercase;
         }
-        .mh-badge.driver { background: rgba(191,154,86,0.15); color: var(--gold); border: 1px solid var(--gold-border); }
-        .mh-badge.passenger { background: rgba(59,130,246,0.15); color: var(--info); border: 1px solid rgba(59,130,246,0.3); }
-        .mh-badge.individual { background: rgba(100,116,139,0.15); color: var(--muted); border: 1px solid var(--border); }
-        .mh-date { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
-        .mh-people { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+        .mh-badge.driver {
+            background: rgba(191, 154, 86, 0.15);
+            color: var(--gold);
+            border: 1px solid var(--gold-border);
+        }
+
+        .mh-badge.passenger {
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--info);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .mh-badge.individual {
+            background: rgba(100, 116, 139, 0.15);
+            color: var(--muted);
+            border: 1px solid var(--border);
+        }
+
+        .mh-date {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--muted);
+        }
+
+        .mh-people {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
         .mh-person-tag {
             background: var(--glass);
             border: 1px solid var(--border);
@@ -1527,14 +1881,42 @@
     <div id="screen-app" class="screen" style="display:none;flex-direction:column;">
 
         <!-- HEADER -->
-        <header class="app-header">
-            <button class="header-btn" onclick="openSidebar()"><i data-lucide="menu"></i></button>
-            <div class="header-title"><span>Uni</span>Rotas</div>
-            <div style="width:40px"></div>
+        <header class="app-header" style="padding: 0 16px; justify-content: space-between;">
+            <button class="header-btn" onclick="openSidebar()">
+                <i data-lucide="menu"></i>
+            </button>
+            <div style="flex:1; padding: 0 12px;">
+                <div class="header-greeting" id="header-greeting">Bom dia</div>
+                <div class="header-name">Olá, <span id="header-first-name">Vendedor</span></div>
+            </div>
+            <button class="header-btn" onclick="showScreen('chat')" style="position:relative;">
+                <i data-lucide="message-circle"></i>
+                <span id="header-chat-badge" class="bn-badge" style="display:none;"></span>
+            </button>
         </header>
 
         <!-- DASHBOARD VIEW -->
         <div id="view-dashboard" class="scroll-area">
+
+            <!-- PULL TO REFRESH -->
+            <div class="ptr-indicator" id="ptr-indicator">
+                <i data-lucide="refresh-cw" style="width:16px;height:16px;display:inline;"></i> Solte para atualizar
+            </div>
+
+            <!-- QUICK CARDS -->
+            <div class="dash-quick-cards" id="dash-quick-cards">
+                <div class="dash-qcard gold">
+                    <div class="dash-qcard-icon"><i data-lucide="route"></i></div>
+                    <div class="dash-qcard-val" id="qcard-clients">0</div>
+                    <div class="dash-qcard-lbl">Clientes hoje</div>
+                </div>
+                <div class="dash-qcard success" onclick="if(isTracking) showToast('GPS já ativo!','success')">
+                    <div class="dash-qcard-icon"><i data-lucide="navigation"></i></div>
+                    <div class="dash-qcard-val" id="qcard-gps">OFF</div>
+                    <div class="dash-qcard-lbl">GPS Status</div>
+                </div>
+            </div>
+
             <div class="status-card">
                 <div id="status-ring" class="pulse-ring"><i data-lucide="navigation"
                         style="color:var(--gold);width:26px;height:26px"></i></div>
@@ -1543,6 +1925,12 @@
                 <div id="accuracy-warning" class="warn-badge hidden">
                     <i data-lucide="alert-triangle" style="width:12px;height:12px"></i> Precisão baixa detectada
                 </div>
+
+                <button class="btn-share-loc" id="btn-share-loc" onclick="shareLocation()"
+                    style="margin-top:12px;display:none;">
+                    <i data-lucide="share-2" style="width:16px;height:16px;"></i>
+                    Compartilhar Minha Localização
+                </button>
             </div>
             <button id="btn-tracking" class="btn-primary" onclick="toggleTracking()" style="margin-bottom:24px">
                 INICIAR RASTREAMENTO
@@ -1553,17 +1941,18 @@
               border-radius: 16px; padding: 16px 18px; margin-bottom: 16px;
               display: flex; align-items: center; gap: 14px; cursor: pointer;
             " onclick="showScreen('reuniao')">
-              <div style="width:44px;height:44px;border-radius:12px;background:rgba(191,154,86,0.2);
+                <div
+                    style="width:44px;height:44px;border-radius:12px;background:rgba(191,154,86,0.2);
                 border:1px solid var(--gold-border);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <i data-lucide="users" style="color:var(--gold);width:22px;height:22px;"></i>
-              </div>
-              <div style="flex:1">
-                <div style="font-weight:700;font-size:0.92rem;">Reunião Agendada</div>
-                <div id="meeting-alert-location" style="font-size:0.75rem;color:var(--muted);margin-top:2px;">
-                  Local sendo definido...
+                    <i data-lucide="users" style="color:var(--gold);width:22px;height:22px;"></i>
                 </div>
-              </div>
-              <i data-lucide="chevron-right" style="color:var(--gold);width:18px;height:18px;flex-shrink:0;"></i>
+                <div style="flex:1">
+                    <div style="font-weight:700;font-size:0.92rem;">Reunião Agendada</div>
+                    <div id="meeting-alert-location" style="font-size:0.75rem;color:var(--muted);margin-top:2px;">
+                        Local sendo definido...
+                    </div>
+                </div>
+                <i data-lucide="chevron-right" style="color:var(--gold);width:18px;height:18px;flex-shrink:0;"></i>
             </div>
 
             <div id="route-list-container" class="hidden">
@@ -1654,6 +2043,13 @@
                         Aguardando motorista chegar...
                     </div>
                 </div>
+                <button class="p-btn-small chat" id="btn-passenger-chat-driver" style="
+                  margin: 12px auto 0; display: none;
+                  padding: 10px 20px; font-size: 0.82rem;
+                " onclick="openMeetingChatWithDriver()">
+                    <i data-lucide="message-circle" style="display:inline;width:14px;height:14px"></i>
+                    Enviar mensagem ao motorista
+                </button>
                 <button id="btn-passenger-confirm-presence" class="action-btn gold hidden"
                     onclick="passengerConfirmPresence()">
                     <i data-lucide="check-circle"></i> Confirmar Presença na Reunião
@@ -1812,6 +2208,30 @@
 
     </div>
 
+    <!-- BOTTOM NAVIGATION -->
+    <nav class="bottom-nav">
+        <button class="bn-item active" id="bn-dashboard" onclick="showScreen('dashboard')">
+            <i data-lucide="layout-dashboard"></i>
+            <span>Início</span>
+        </button>
+        <button class="bn-item" id="bn-reuniao" onclick="showScreen('reuniao')" style="position:relative;">
+            <i data-lucide="users"></i>
+            <span>Reunião</span>
+        </button>
+        <button class="bn-item" id="bn-map" onclick="showScreen('map')">
+            <i data-lucide="map"></i>
+            <span>Rota</span>
+        </button>
+        <button class="bn-item" id="bn-historico" onclick="showScreen('historico')">
+            <i data-lucide="history"></i>
+            <span>Histórico</span>
+        </button>
+        <button class="bn-item" id="bn-sidebar" onclick="openSidebar()">
+            <i data-lucide="menu"></i>
+            <span>Menu</span>
+        </button>
+    </nav>
+
     <!-- TOAST -->
     <div id="toast"></div>
 
@@ -1853,6 +2273,11 @@
         let currentMeetingId = null;
         let currentDriverUid = null;
         let meetingLocationData = null;
+
+        // Listeners para limpeza (Correções 1 e 2)
+        let pickupListListener = null;
+        let driverInfoListener = null;
+        let passengerStateListener = null;
 
         // ── TOAST ────────────────────────────────────────────────────────────────
         function showToast(msg, type = '') {
@@ -1992,6 +2417,10 @@
             const snap = await firebase.database().ref('usuarios/' + uid).once('value');
             const data = snap.val() || {};
             currentVendorName = data.name || 'Vendedor';
+            updateHeaderName(currentVendorName);
+            updateGreeting();
+            updateQuickCards();
+
             document.getElementById('sidebar-user-name').textContent = currentVendorName;
             document.getElementById('sidebar-user-cpf').textContent = data.cpf ? `CPF: ${data.cpf}` : 'ID Ativo';
 
@@ -2039,6 +2468,7 @@
                 document.getElementById('accuracy-warning').classList.toggle('hidden', accuracy < 50);
                 const user = firebase.auth().currentUser;
                 if (user) firebase.database().ref('vendedores/' + user.uid).update({ lat, lon, lastActive: firebase.database.ServerValue.TIMESTAMP });
+                updateQuickCards();
             }, err => showToast('Erro GPS: ' + err.message, 'error'), { enableHighAccuracy: true, maximumAge: 5000 });
         }
         function stopTracking() {
@@ -2047,6 +2477,7 @@
             document.getElementById('btn-tracking').textContent = 'INICIAR RASTREAMENTO';
             document.getElementById('status-ring').classList.remove('active');
             document.getElementById('status-text').textContent = 'Expediente Inativo';
+            updateQuickCards();
         }
 
         // ── ROUTE LISTENER ───────────────────────────────────────────────────────
@@ -2245,6 +2676,10 @@
                     }, 4000);
 
                     await firebase.database().ref(`meeting/notifications/${currentVendorUid}`).update({ handled: true });
+                } else if (notif.type === 'passengerCancelled') {
+                    // Atualiza a lista de pickup ao vivo (já está em tempo real pelo listener)
+                    showToast(`${notif.passengerName} cancelou a participação.`, 'error');
+                    await firebase.database().ref(`meeting/notifications/${currentVendorUid}`).update({ handled: true });
                 }
             });
         }
@@ -2320,6 +2755,10 @@
         }
 
         function showMeetingView(viewId) {
+            // ✅ Limpa alerta de chat ao trocar de tela
+            const alertEl = document.getElementById('meeting-chat-alert');
+            if (alertEl) alertEl.remove();
+
             const views = ['meeting-role-select', 'meeting-passenger-waiting', 'meeting-passenger-selected', 'meeting-driver-select', 'meeting-driver-route', 'meeting-driver-return', 'meeting-individual'];
             views.forEach(v => {
                 const el = document.getElementById(v);
@@ -2357,27 +2796,99 @@
         }
 
         // ── PASSENGER FLOW ───────────────────────────────────────────────────────
-        function cancelPassengerWaiting() {
+        async function cancelPassengerWaiting() {
             if (!currentVendorUid) return;
-            firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
+
+            // Se tinha motorista designado, avisa ele
+            const snap = await firebase.database().ref(`meeting/participants/${currentVendorUid}`).once('value');
+            const data = snap.val();
+
+            if (data?.driverUid) {
+                // Remove do driverPickups do motorista
+                await firebase.database().ref(`meeting/driverPickups/${data.driverUid}/${currentVendorUid}`).remove();
+                // Notifica motorista
+                await firebase.database().ref(`meeting/notifications/${data.driverUid}`).set({
+                    type: 'passengerCancelled',
+                    passengerUid: currentVendorUid,
+                    passengerName: currentVendorName,
+                    handled: false,
+                    timestamp: Date.now()
+                });
+            }
+
+            // Para listeners
+            if (driverInfoListener && data?.driverUid) {
+                firebase.database().ref(`vendedores/${data.driverUid}`).off('value', driverInfoListener);
+                driverInfoListener = null;
+            }
+            if (passengerStateListener) {
+                firebase.database().ref(`meeting/participants/${currentVendorUid}`).off('value', passengerStateListener);
+                passengerStateListener = null;
+            }
+
+            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
             currentMeetingRole = null;
+            currentDriverUid = null;
             showMeetingView('meeting-role-select');
-            showToast('Participação cancelada.');
+            showToast('Participação cancelada.', 'error');
         }
 
         function listenForDriverInfo(driverUid) {
             currentDriverUid = driverUid;
-            firebase.database().ref(`vendedores/${driverUid}`).on('value', snap => {
+
+            // Escuta dados do motorista (nome, localização)
+            if (driverInfoListener) {
+                firebase.database().ref(`vendedores/${currentDriverUid}`).off('value', driverInfoListener);
+            }
+            driverInfoListener = firebase.database().ref(`vendedores/${driverUid}`).on('value', snap => {
                 const d = snap.val();
                 if (!d) return;
-                document.getElementById('passenger-driver-name').textContent = d.name || 'Motorista';
-                
-                // ✅ ADICIONE ESTA LINHA
+                document.getElementById('passenger-driver-name').textContent = 'Motorista: ' + (d.name || '');
                 updatePassengerETA(driverUid);
+            });
+
+            // ✅ NOVO: escuta estado do próprio carona no Firebase em tempo real
+            if (passengerStateListener) {
+                firebase.database().ref(`meeting/participants/${currentVendorUid}`).off('value', passengerStateListener);
+            }
+            passengerStateListener = firebase.database().ref(`meeting/participants/${currentVendorUid}`).on('value', snap => {
+                const data = snap.val();
+                if (!data) {
+                    // Motorista removeu o carona (cancelou)
+                    showMeetingView('meeting-passenger-waiting');
+                    showToast('Motorista cancelou a rota.', 'error');
+                    return;
+                }
+
+                const status = data.embarkStatus;
+                const embarkEl = document.getElementById('passenger-embark-status');
+
+                if (status === 'selected') {
+                    // Motorista selecionou — mostra tela correta imediatamente
+                    showMeetingView('meeting-passenger-selected');
+                    if (embarkEl) embarkEl.innerHTML = `
+        <div style="color:var(--gold);font-weight:700">Motorista a caminho!</div>
+        <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">Aguarde, ele está indo buscar você.</div>
+      `;
+                    const btnChat = document.getElementById('btn-passenger-chat-driver');
+                    if (btnChat) btnChat.style.display = 'flex';
+                } else if (status === 'accepted') {
+                    showPassengerEmbarked(data.driverName || 'Motorista');
+                } else if (status === 'waiting' && currentMeetingRole === 'passenger') {
+                    // Voltou para waiting = motorista cancelou
+                    showMeetingView('meeting-passenger-waiting');
+                    showToast('Motorista cancelou. Aguarde outro.', 'error');
+                }
             });
 
             // ✅ ADICIONE ISSO: escuta mensagens do motorista
             listenForMeetingChatMessages(driverUid);
+        }
+
+        function openMeetingChatWithDriver() {
+            if (!currentDriverUid) { showToast('Motorista não identificado.', 'error'); return; }
+            const driverName = document.getElementById('passenger-driver-name')?.textContent || 'Motorista';
+            openMeetingChat(currentDriverUid, driverName);
         }
 
         async function updatePassengerETA(driverUid) {
@@ -2516,33 +3027,61 @@
             showMeetingView('meeting-role-select');
         }
 
-        async function loadPickupList() {
-            const snap = await firebase.database().ref(`meeting_driver_pickups/${currentVendorUid}`).once('value');
-            const pickups = Object.values(snap.val() || {});
-            const container = document.getElementById('driver-pickup-list');
-            container.innerHTML = '';
-            if (pickups.length === 0) {
-                document.getElementById('btn-driver-confirm-presence').classList.remove('hidden');
-                return;
+        function loadPickupList() {
+            // Remove listener anterior
+            if (pickupListListener) {
+                firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).off('value', pickupListListener);
             }
-            const allPicked = pickups.every(p => p.status === 'accepted' || p.status === 'refused');
-            pickups.sort((a, b) => (a.order || 0) - (b.order || 0)).forEach(p => {
-                const div = document.createElement('div');
-                div.className = 'passenger-item';
-                div.id = `pickup-item-${p.uid}`;
-                const statusMap = { pending: 'Aguardando resp.', accepted: 'A bordo ✓', refused: 'Recusou', 'picked': 'A bordo ✓' };
-                const badgeMap = { pending: 'waiting', accepted: 'picked', refused: 'refused' };
-                div.innerHTML = `<div style="flex:1"><div class="p-name">${p.name}</div>
-                <div class="p-addr">${p.address || ''}</div>
-                <div class="p-actions">
-                    <button class="p-btn-small chat" onclick="openMeetingChat('${p.uid}', '${p.name}')"><i data-lucide="message-circle" style="display:inline;width:12px;height:12px"></i> Mensagem</button>
-                    ${p.status === 'accepted' ? '' : `<button class="p-btn-small pickup" onclick="driverPickedUp('${p.uid}','${p.name}')"><i data-lucide="check" style="display:inline;width:12px;height:12px"></i> Peguei</button>`}
-                </div></div>
-                <span class="p-status-badge ${badgeMap[p.status] || 'waiting'}">${statusMap[p.status] || 'Aguardando'}</span>`;
-                container.appendChild(div);
+
+            const container = document.getElementById('driver-pickup-list');
+
+            pickupListListener = firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).on('value', snap => {
+                const raw = snap.val();
+                if (!raw) {
+                    container.innerHTML = '';
+                    document.getElementById('btn-driver-confirm-presence').classList.remove('hidden');
+                    return;
+                }
+
+                const pickups = Object.values(raw);
+                container.innerHTML = '';
+
+                const allResolved = pickups.every(p => p.status === 'accepted' || p.status === 'refused');
+                if (allResolved) {
+                    document.getElementById('btn-driver-confirm-presence').classList.remove('hidden');
+                }
+
+                pickups.sort((a, b) => (a.order || 0) - (b.order || 0)).forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = 'passenger-item';
+                    div.id = `pickup-item-${p.uid}`;
+
+                    const statusMap = { pending: 'Aguardando resp.', accepted: 'A bordo ✓', refused: 'Recusou', picked: 'A bordo ✓' };
+                    const badgeMap = { pending: 'waiting', accepted: 'picked', refused: 'refused' };
+
+                    div.innerHTML = `
+        <div style="flex:1">
+          <div class="p-name">${p.name}</div>
+          <div class="p-addr">${p.address || ''}</div>
+          <div class="p-actions">
+            <button class="p-btn-small chat" onclick="openMeetingChat('${p.uid}','${p.name}')">
+              <i data-lucide="message-circle" style="display:inline;width:12px;height:12px"></i> Mensagem
+            </button>
+            ${p.status === 'pending' || p.status === 'accepted' ? `
+            <button class="p-btn-small pickup" onclick="driverPickedUp('${p.uid}','${p.name}')">
+              <i data-lucide="check" style="display:inline;width:12px;height:12px"></i> Peguei
+            </button>` : ''}
+          </div>
+        </div>
+        <span class="p-status-badge ${badgeMap[p.status] || 'waiting'}">
+          ${statusMap[p.status] || 'Aguardando'}
+        </span>
+      `;
+                    container.appendChild(div);
+                });
+
+                lucide.createIcons();
             });
-            if (allPicked) document.getElementById('btn-driver-confirm-presence').classList.remove('hidden');
-            lucide.createIcons();
         }
 
         async function driverPickedUp(passengerUid, passengerName) {
@@ -2721,8 +3260,9 @@
         function openMeetingChat(partnerUid, partnerName) {
             meetingChatPartnerUid = partnerUid;
 
-            // Gera chave de sala consistente (menor UID sempre primeiro)
-            const roomKey = [currentVendorUid, partnerUid].sort().join('_');
+            // Gera chave de sala consistente (menor UID sempre primeiro) com a data do dia
+            const today = new Date().toISOString().split('T')[0];
+            const roomKey = today + '_' + [currentVendorUid, partnerUid].sort().join('_');
 
             document.getElementById('meeting-chat-title').textContent = '💬 ' + partnerName;
             document.getElementById('meeting-chat-modal').style.display = 'flex';
@@ -2771,7 +3311,8 @@
             const text = input.value.trim();
             if (!text || !meetingChatPartnerUid) return;
 
-            const roomKey = [currentVendorUid, meetingChatPartnerUid].sort().join('_');
+            const today = new Date().toISOString().split('T')[0];
+            const roomKey = today + '_' + [currentVendorUid, meetingChatPartnerUid].sort().join('_');
             await firebase.database().ref(`meeting/chats/${roomKey}`).push({
                 senderUid: currentVendorUid,
                 senderName: currentVendorName,
@@ -2782,8 +3323,9 @@
         }
 
         function closeMeetingChat() {
+            const today = new Date().toISOString().split('T')[0];
             const roomKey = meetingChatPartnerUid
-                ? [currentVendorUid, meetingChatPartnerUid].sort().join('_')
+                ? today + '_' + [currentVendorUid, meetingChatPartnerUid].sort().join('_')
                 : null;
             if (roomKey && meetingChatListener) {
                 firebase.database().ref(`meeting/chats/${roomKey}`).off('value', meetingChatListener);
@@ -2791,12 +3333,18 @@
             }
             meetingChatPartnerUid = null;
             document.getElementById('meeting-chat-modal').style.display = 'none';
+
+            // ✅ Remove alerta visual se existir
+            const alert = document.getElementById('meeting-chat-alert');
+            if (alert) alert.remove();
+            lastMeetingMsgCount = 0; // Reseta contador
         }
 
         let lastMeetingMsgCount = 0;
 
         function listenForMeetingChatMessages(partnerUid) {
-            const roomKey = [currentVendorUid, partnerUid].sort().join('_');
+            const today = new Date().toISOString().split('T')[0];
+            const roomKey = today + '_' + [currentVendorUid, partnerUid].sort().join('_');
 
             firebase.database().ref(`meeting/chats/${roomKey}`).on('value', snap => {
                 const msgs = snap.val();
@@ -2961,6 +3509,140 @@
             showMeetingView('meeting-role-select');
             showToast('Rota cancelada. Voltando ao menu.', 'error');
         }
+
+        // ===== SAUDAÇÃO DINÂMICA =====
+        function updateGreeting() {
+            const h = new Date().getHours();
+            const greet = h < 12 ? 'Bom dia ☀️' : h < 18 ? 'Boa tarde 🌤️' : 'Boa noite 🌙';
+            const el = document.getElementById('header-greeting');
+            if (el) el.textContent = greet;
+        }
+        updateGreeting();
+
+        // ===== BOTTOM NAV SYNC =====
+        const _origShowScreen = showScreen;
+        showScreen = function (id) {
+            _origShowScreen(id);
+            document.querySelectorAll('.bn-item').forEach(b => b.classList.remove('active'));
+            const bn = document.getElementById('bn-' + id);
+            if (bn) bn.classList.add('active');
+        };
+
+        // ===== ATUALIZA NOME NO HEADER =====
+        function updateHeaderName(fullName) {
+            const first = fullName.split(' ')[0];
+            const el = document.getElementById('header-first-name');
+            if (el) el.textContent = first;
+        }
+
+        // ===== QUICK CARDS =====
+        function updateQuickCards() {
+            // Clientes
+            const clientCount = (typeof currentRoute !== 'undefined' && currentRoute.length) || 0;
+            const qc = document.getElementById('qcard-clients');
+            if (qc) qc.textContent = clientCount;
+
+            // GPS
+            const gpsEl = document.getElementById('qcard-gps');
+            if (gpsEl) gpsEl.textContent = isTracking ? 'ON' : 'OFF';
+
+            // Botão share
+            const shareBtn = document.getElementById('btn-share-loc');
+            if (shareBtn) shareBtn.style.display = isTracking ? 'flex' : 'none';
+            lucide.createIcons();
+        }
+
+        // Chama updateQuickCards quando rota carregar
+        const _origListenForRoute = listenForRoute;
+        listenForRoute = function (uid) {
+            firebase.database().ref(`routes/${uid}`).on('value', snap => {
+                const data = snap.val();
+                if (!data) return;
+                currentRoute = data.waypoints || [];
+                const container = document.getElementById('route-list-container');
+                const list = document.getElementById('vendedor-route-list');
+                if (currentRoute.length === 0) { container.classList.add('hidden'); return; }
+                container.classList.remove('hidden');
+                list.innerHTML = '';
+                currentRoute.forEach((wp, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'route-item';
+                    div.innerHTML = `
+        <div class="ri-num">${i + 1}</div>
+        <div class="ri-body">
+          <div class="ri-name">${wp.name || 'Cliente'}</div>
+          <div class="ri-addr">${wp.address || ''}</div>
+        </div>
+        <button class="btn-navigate" onclick="openInGoogleMaps(${wp.lat || 0},${wp.lng || 0})">
+          <i data-lucide="navigation" style="width:14px;height:14px"></i>
+        </button>
+      `;
+                    list.appendChild(div);
+                });
+                updateQuickCards();
+                lucide.createIcons();
+            });
+        };
+
+        // ===== COMPARTILHAR LOCALIZAÇÃO =====
+        function shareLocation() {
+            if (!lastLat) { showToast('GPS inativo. Ative o rastreamento.', 'error'); return; }
+            const url = `https://maps.google.com/?q=${lastLat},${lastLon}`;
+            if (navigator.share) {
+                navigator.share({ title: 'Minha localização - UniRotas', url });
+            } else {
+                navigator.clipboard.writeText(url);
+                showToast('Link copiado! Cole no WhatsApp.', 'success');
+            }
+        }
+
+        // ===== PULL TO REFRESH =====
+        (function setupPTR() {
+            let startY = 0, pulling = false;
+            const area = document.getElementById('view-dashboard');
+            if (!area) return;
+            area.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, { passive: true });
+            area.addEventListener('touchmove', e => {
+                const dy = e.touches[0].clientY - startY;
+                if (dy > 60 && area.scrollTop === 0) {
+                    pulling = true;
+                    document.getElementById('ptr-indicator')?.classList.add('visible');
+                }
+            }, { passive: true });
+            area.addEventListener('touchend', () => {
+                if (pulling) {
+                    pulling = false;
+                    document.getElementById('ptr-indicator')?.classList.remove('visible');
+                    const user = firebase.auth().currentUser;
+                    if (user) listenForRoute(user.uid);
+                    showToast('Atualizando roteiro...', 'success');
+                }
+            });
+        })();
+
+        // ===== PARTÍCULAS NO LOGIN =====
+        (function createParticles() {
+            const top = document.querySelector('.login-top');
+            if (!top) return;
+            top.style.position = 'relative';
+            const wrap = document.createElement('div');
+            wrap.className = 'login-particles';
+            for (let i = 0; i < 18; i++) {
+                const p = document.createElement('div');
+                p.className = 'login-particle';
+                p.style.cssText = `
+      left: ${Math.random() * 100}%;
+      bottom: ${Math.random() * 30}%;
+      animation-duration: ${4 + Math.random() * 6}s;
+      animation-delay: ${Math.random() * 5}s;
+      width: ${2 + Math.random() * 3}px;
+      height: ${2 + Math.random() * 3}px;
+      opacity: 0;
+    `;
+                wrap.appendChild(p);
+            }
+            top.prepend(wrap);
+        })();
     </script>
     <!-- MODAL CHAT MOTORISTA <-> CARONA -->
     <div id="meeting-chat-modal"
