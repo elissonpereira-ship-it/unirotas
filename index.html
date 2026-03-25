@@ -1491,6 +1491,11 @@
             display: block;
         }
 
+        #btn-passenger-chat-driver:hover {
+            background: rgba(59, 130, 246, 0.22) !important;
+            transform: translateY(-1px);
+        }
+
         /* ── CHAT VIEW ──────────────────────────── */
         #view-chat {
             flex: 1;
@@ -2042,6 +2047,21 @@
                         style="text-align:center; padding: 10px 0; font-size:0.9rem; color:var(--muted);">
                         Aguardando motorista chegar...
                     </div>
+                </div>
+
+                <!-- BOTÃO CHAT COM MOTORISTA -->
+                <div id="passenger-driver-chat-wrap"
+                    style="display:none; justify-content:flex-end; margin-top:-8px; margin-bottom:8px;">
+                    <button id="btn-passenger-chat-driver" onclick="openMeetingChatWithDriver()" style="
+                display:flex; align-items:center; gap:6px;
+                padding:8px 16px; border-radius:20px;
+                background:rgba(59,130,246,0.12); border:1px solid rgba(59,130,246,0.3);
+                color:var(--info); font-family:inherit; font-size:0.8rem; font-weight:700;
+                cursor:pointer; transition:all 0.2s;
+              ">
+                        <i data-lucide="message-circle" style="width:15px;height:15px;"></i>
+                        Mensagem ao motorista
+                    </button>
                 </div>
                 <button class="p-btn-small chat" id="btn-passenger-chat-driver" style="
                   margin: 12px auto 0; display: none;
@@ -2618,6 +2638,10 @@
                 if (!notif || notif.handled) return;
 
                 if (notif.type === 'pickup_request') {
+                    // ✅ Ativa listener em tempo real imediatamente
+                    showMeetingView('meeting-passenger-selected');
+                    listenForDriverInfo(notif.driverUid);
+
                     showNotification(
                         'gold', 'car',
                         'Motorista chegou!',
@@ -2627,7 +2651,7 @@
                             await firebase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({ status: 'accepted' });
                             await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
                             showPassengerEmbarked(notif.driverName);
-                            listenForDriverInfo(notif.driverUid);
+                            // listenForDriverInfo(notif.driverUid); // Já chamado acima
                         },
                         async () => {
                             await firebase.database().ref(`meeting/participants/${uid}`).update({ embarkStatus: 'refused' });
@@ -2677,8 +2701,11 @@
 
                     await firebase.database().ref(`meeting/notifications/${currentVendorUid}`).update({ handled: true });
                 } else if (notif.type === 'passengerCancelled') {
-                    // Atualiza a lista de pickup ao vivo (já está em tempo real pelo listener)
-                    showToast(`${notif.passengerName} cancelou a participação.`, 'error');
+                    showToast(`⚠️ ${notif.passengerName} cancelou a participação.`, 'error');
+                    // Remove da seleção local se ainda estiver
+                    selectedPassengers = selectedPassengers.filter(p => p.uid !== notif.passengerUid);
+                    const countEl = document.getElementById('selected-count');
+                    if (countEl) countEl.textContent = selectedPassengers.length;
                     await firebase.database().ref(`meeting/notifications/${currentVendorUid}`).update({ handled: true });
                 }
             });
@@ -2796,47 +2823,98 @@
         }
 
         // ── PASSENGER FLOW ───────────────────────────────────────────────────────
-        async function cancelPassengerWaiting() {
+        function cancelPassengerWaiting() {
             if (!currentVendorUid) return;
 
-            // Se tinha motorista designado, avisa ele
-            const snap = await firebase.database().ref(`meeting/participants/${currentVendorUid}`).once('value');
-            const data = snap.val();
+            // ✅ Confirmação para evitar cancelamento acidental
+            showConfirmDialog(
+                'Cancelar participação?',
+                'Tem certeza que deseja sair da fila de carona?',
+                async () => {
+                    try {
+                        const snap = await firebase.database().ref(`meeting/participants/${currentVendorUid}`).once('value');
+                        const data = snap.val();
 
-            if (data?.driverUid) {
-                // Remove do driverPickups do motorista
-                await firebase.database().ref(`meeting/driverPickups/${data.driverUid}/${currentVendorUid}`).remove();
-                // Notifica motorista
-                await firebase.database().ref(`meeting/notifications/${data.driverUid}`).set({
-                    type: 'passengerCancelled',
-                    passengerUid: currentVendorUid,
-                    passengerName: currentVendorName,
-                    handled: false,
-                    timestamp: Date.now()
-                });
-            }
+                        if (data?.driverUid) {
+                            // Remove da lista de pickups do motorista
+                            await firebase.database().ref(`meeting/driverPickups/${data.driverUid}/${currentVendorUid}`).remove();
+                            // Notifica o motorista
+                            await firebase.database().ref(`meeting/notifications/${data.driverUid}`).set({
+                                type: 'passengerCancelled',
+                                passengerUid: currentVendorUid,
+                                passengerName: currentVendorName,
+                                handled: false,
+                                timestamp: Date.now()
+                            });
+                        }
 
-            // Para listeners
-            if (driverInfoListener && data?.driverUid) {
-                firebase.database().ref(`vendedores/${data.driverUid}`).off('value', driverInfoListener);
-                driverInfoListener = null;
-            }
-            if (passengerStateListener) {
-                firebase.database().ref(`meeting/participants/${currentVendorUid}`).off('value', passengerStateListener);
-                passengerStateListener = null;
-            }
+                        // Para listener de estado do carona
+                        if (passengerStateListener) {
+                            firebase.database().ref(`meeting/participants/${currentVendorUid}`).off('value', passengerStateListener);
+                            passengerStateListener = null;
+                        }
 
-            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
-            currentMeetingRole = null;
-            currentDriverUid = null;
-            showMeetingView('meeting-role-select');
-            showToast('Participação cancelada.', 'error');
+                        await firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
+                        currentMeetingRole = null;
+                        currentDriverUid = null;
+                        showMeetingView('meeting-role-select');
+                        showToast('Participação cancelada.', 'error');
+                    } catch (e) {
+                        showToast('Erro ao cancelar: ' + e.message, 'error');
+                    }
+                }
+            );
+        }
+
+        function showConfirmDialog(title, subtitle, onConfirm) {
+            // Remove modal anterior se existir
+            const existing = document.getElementById('confirm-dialog-modal');
+            if (existing) existing.remove();
+
+            const modal = document.createElement('div');
+            modal.id = 'confirm-dialog-modal';
+            modal.style.cssText = `
+    position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:5000;
+    display:flex;align-items:flex-end;justify-content:center;
+    padding:20px;backdrop-filter:blur(10px);
+  `;
+            modal.innerHTML = `
+    <div style="
+      width:100%;max-width:480px;background:var(--surface);
+      border:1px solid var(--border);border-radius:24px;padding:28px 24px;
+      animation:slideUp 0.3s ease;
+    ">
+      <div style="font-size:1.1rem;font-weight:700;text-align:center;margin-bottom:8px;">${title}</div>
+      <div style="font-size:0.82rem;color:var(--muted);text-align:center;margin-bottom:22px;">${subtitle}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <button id="confirm-dialog-no" style="
+          padding:14px;border-radius:12px;border:1px solid var(--border);
+          background:var(--surface2);color:var(--muted);font-family:inherit;
+          font-size:0.9rem;font-weight:700;cursor:pointer;
+        ">Não, voltar</button>
+        <button id="confirm-dialog-yes" style="
+          padding:14px;border-radius:12px;border:none;
+          background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);
+          color:var(--danger);font-family:inherit;font-size:0.9rem;font-weight:700;cursor:pointer;
+        ">Sim, cancelar</button>
+      </div>
+    </div>
+  `;
+
+            document.body.appendChild(modal);
+            lucide.createIcons();
+
+            document.getElementById('confirm-dialog-no').onclick = () => modal.remove();
+            document.getElementById('confirm-dialog-yes').onclick = () => {
+                modal.remove();
+                onConfirm();
+            };
         }
 
         function listenForDriverInfo(driverUid) {
             currentDriverUid = driverUid;
 
-            // Escuta dados do motorista (nome, localização)
+            // Escuta posição/nome do motorista
             if (driverInfoListener) {
                 firebase.database().ref(`vendedores/${currentDriverUid}`).off('value', driverInfoListener);
             }
@@ -2844,45 +2922,44 @@
                 const d = snap.val();
                 if (!d) return;
                 document.getElementById('passenger-driver-name').textContent = 'Motorista: ' + (d.name || '');
-                updatePassengerETA(driverUid);
+                // ETA simples
+                if (d.lat && lastLat) {
+                    const dist = calcDistance(lastLat, lastLon, d.lat, d.lng || d.lon);
+                    const eta = Math.round((dist / 1000) / 40 * 60);
+                    document.getElementById('passenger-eta-text').textContent =
+                        `🚗 Motorista a ${Math.round(dist)}m — ~${eta} min`;
+                }
             });
 
-            // ✅ NOVO: escuta estado do próprio carona no Firebase em tempo real
+            // ✅ Listener em tempo real no próprio estado do carona
             if (passengerStateListener) {
                 firebase.database().ref(`meeting/participants/${currentVendorUid}`).off('value', passengerStateListener);
             }
             passengerStateListener = firebase.database().ref(`meeting/participants/${currentVendorUid}`).on('value', snap => {
                 const data = snap.val();
-                if (!data) {
-                    // Motorista removeu o carona (cancelou)
-                    showMeetingView('meeting-passenger-waiting');
-                    showToast('Motorista cancelou a rota.', 'error');
-                    return;
-                }
+                if (!data) return; // removido pelo motorista → tratado por cancelPassengerWaiting
 
-                const status = data.embarkStatus;
-                const embarkEl = document.getElementById('passenger-embark-status');
+                const embarkStatus = data.embarkStatus;
 
-                if (status === 'selected') {
-                    // Motorista selecionou — mostra tela correta imediatamente
+                if (embarkStatus === 'selected') {
+                    // Motorista selecionou → já na tela certa, garante que apareça
                     showMeetingView('meeting-passenger-selected');
-                    if (embarkEl) embarkEl.innerHTML = `
-        <div style="color:var(--gold);font-weight:700">Motorista a caminho!</div>
-        <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">Aguarde, ele está indo buscar você.</div>
-      `;
-                    const btnChat = document.getElementById('btn-passenger-chat-driver');
-                    if (btnChat) btnChat.style.display = 'flex';
-                } else if (status === 'accepted') {
+                    // Mostra botão de chat com motorista
+                    const wrap = document.getElementById('passenger-driver-chat-wrap');
+                    if (wrap) wrap.style.display = 'flex';
+                } else if (embarkStatus === 'accepted') {
+                    showMeetingView('meeting-passenger-selected');
                     showPassengerEmbarked(data.driverName || 'Motorista');
-                } else if (status === 'waiting' && currentMeetingRole === 'passenger') {
-                    // Voltou para waiting = motorista cancelou
-                    showMeetingView('meeting-passenger-waiting');
-                    showToast('Motorista cancelou. Aguarde outro.', 'error');
+                    const wrap = document.getElementById('passenger-driver-chat-wrap');
+                    if (wrap) wrap.style.display = 'flex';
+                } else if (embarkStatus === 'waiting') {
+                    // Motorista cancelou / removeu
+                    if (currentMeetingRole === 'passenger') {
+                        showMeetingView('meeting-passenger-waiting');
+                        showToast('Motorista cancelou. Aguardando outro.', 'error');
+                    }
                 }
             });
-
-            // ✅ ADICIONE ISSO: escuta mensagens do motorista
-            listenForMeetingChatMessages(driverUid);
         }
 
         function openMeetingChatWithDriver() {
@@ -2934,45 +3011,56 @@
         }
 
         // ── DRIVER FLOW ──────────────────────────────────────────────────────────
-        let passengersListener = null;
+        let availablePassengersListener = null;
 
         function loadAvailablePassengers() {
             const list = document.getElementById('available-passengers-list');
             list.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
 
             // Remove listener anterior se existir
-            if (passengersListener) {
-                firebase.database().ref('meeting/participants').off('value', passengersListener);
+            if (availablePassengersListener) {
+                firebase.database().ref('meeting/participants').off('value', availablePassengersListener);
             }
 
-            // Escuta em tempo real
-            passengersListener = firebase.database().ref('meeting/participants').on('value', snap => {
+            availablePassengersListener = firebase.database().ref('meeting/participants').on('value', snap => {
                 const all = snap.val();
                 const waiting = all
-                    ? Object.values(all).filter(p => p.role === 'passenger' && p.embarkStatus === 'waiting' && p.uid !== currentVendorUid)
+                    ? Object.values(all).filter(p =>
+                        p.role === 'passenger' &&
+                        p.embarkStatus === 'waiting' &&
+                        p.uid !== currentVendorUid
+                    )
                     : [];
 
                 list.innerHTML = '';
+
                 if (waiting.length === 0) {
-                    list.innerHTML = '<div class="empty-state"><i data-lucide="users"></i><p>Nenhum vendedor aguardando carona no momento.</p></div>';
+                    list.innerHTML = `<div class="empty-state">
+        <i data-lucide="users"></i>
+        <p>Nenhum vendedor aguardando carona no momento.</p>
+      </div>`;
                     lucide.createIcons();
                     return;
                 }
 
                 waiting.forEach(p => {
+                    const isSelected = selectedPassengers.some(s => s.uid === p.uid);
                     const div = document.createElement('div');
-                    div.className = 'driver-item';
+                    div.className = 'driver-item' + (isSelected ? ' selected' : '');
                     div.id = `passenger-select-${p.uid}`;
                     div.innerHTML = `
         <div>
           <div class="d-name">${p.name}</div>
           <div class="d-sub">Aguardando carona</div>
         </div>
-        <i data-lucide="circle" class="d-check" id="check-${p.uid}" style="opacity:0.2"></i>
+        <i data-lucide="${isSelected ? 'check-circle' : 'circle'}"
+           class="d-check" id="check-${p.uid}"
+           style="opacity:${isSelected ? 1 : 0.2}"></i>
       `;
                     div.onclick = () => togglePassengerSelection(p);
                     list.appendChild(div);
                 });
+
                 lucide.createIcons();
             });
         }
@@ -3643,6 +3731,16 @@
             }
             top.prepend(wrap);
         })();
+
+        function openMeetingChatWithDriver() {
+            if (!currentDriverUid) {
+                showToast('Motorista não identificado ainda.', 'error');
+                return;
+            }
+            const driverName = document.getElementById('passenger-driver-name')?.textContent
+                ?.replace('Motorista: ', '') || 'Motorista';
+            openMeetingChat(currentDriverUid, driverName);
+        }
     </script>
     <!-- MODAL CHAT MOTORISTA <-> CARONA -->
     <div id="meeting-chat-modal"
