@@ -2420,7 +2420,7 @@
             if (user) {
                 await firebase.database().ref('vendedores/' + user.uid).update({ status: 'Offline', lastActive: firebase.database.ServerValue.TIMESTAMP });
                 // Clear meeting status on logout
-                await firebase.database().ref(`meeting_participants/${user.uid}`).remove();
+                await firebase.database().ref(`meeting/participants/${user.uid}`).remove();
             }
             if (isTracking) stopTracking();
             await firebase.auth().signOut();
@@ -2637,70 +2637,107 @@
                 const notif = snap.val();
                 if (!notif || notif.handled) return;
 
+                // ─── NOTIFICAÇÃO 1: Motorista quer te levar (aceitar viagem) ───
                 if (notif.type === 'pickup_request') {
-                    // ✅ Ativa listener em tempo real imediatamente
                     showMeetingView('meeting-passenger-selected');
                     listenForDriverInfo(notif.driverUid);
 
-                    showNotification(
-                        'gold', 'car',
-                        'Motorista chegou!',
-                        `<strong>${notif.driverName}</strong> chegou para buscá-lo.<br>Confirme o embarque.`,
+                    showNotification('gold', 'car', 'Convite de carona!',
+                        `<strong>${notif.driverName}</strong> quer te levar à reunião.<br>Você aceita viajar com ele?`,
+                        // ACEITAR
                         async () => {
-                            await firebase.database().ref(`meeting/participants/${uid}`).update({ embarkStatus: 'accepted', driverUid: notif.driverUid });
-                            await firebase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({ status: 'accepted' });
+                            await firebase.database().ref(`meeting/participants/${uid}`).update({
+                                embarkStatus: 'accepted_ride', // aceitou a viagem, aguardando embarque físico
+                                driverUid: notif.driverUid,
+                                driverName: notif.driverName
+                            });
+                            await firebase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({
+                                status: 'accepted_ride' // motorista vê: "Confirmado ✓"
+                            });
                             await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
-                            showPassengerEmbarked(notif.driverName);
-                            // listenForDriverInfo(notif.driverUid); // Já chamado acima
+                            showToast('Viagem confirmada! Aguarde o motorista.', 'success');
+
+                            // Garante tela certa
+                            showMeetingView('meeting-passenger-selected');
+                            document.getElementById('passenger-embark-status').innerHTML = `
+            <div style="color:var(--gold);font-weight:700">✓ Viagem confirmada!</div>
+            <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">
+              Aguarde o motorista chegar no seu endereço.
+            </div>
+          `;
+                            // Mostra botão de chat
+                            const wrap = document.getElementById('passenger-driver-chat-wrap');
+                            if (wrap) wrap.style.display = 'flex';
                         },
+                        // RECUSAR
                         async () => {
-                            await firebase.database().ref(`meeting/participants/${uid}`).update({ embarkStatus: 'refused' });
-                            await firebase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({ status: 'refused' });
+                            await firebase.database().ref(`meeting/participants/${uid}`).update({
+                                embarkStatus: 'waiting',
+                                driverUid: null
+                            });
+                            await firebase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({
+                                status: 'refused'
+                            });
                             await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
-                            showToast('Embarque recusado.', 'error');
+                            showMeetingView('meeting-passenger-waiting');
+                            showToast('Convite recusado. Aguardando outro motorista.', 'error');
                         }
                     );
-                } else if (notif.type === 'dropoff_request') {
-                    showNotification(
-                        'success', 'home',
-                        'Confirmação de chegada',
-                        `Você chegou em casa? Confirme o desembarque.`,
+                }
+
+                // ─── NOTIFICAÇÃO 2: Motorista chegou, confirmar embarque físico ───
+                else if (notif.type === 'boardingrequest') {
+                    showNotification('success', 'check-circle', 'Motorista chegou!',
+                        `<strong>${notif.driverName}</strong> diz que chegou no seu local.<br>Você embarcou no carro?`,
+                        // CONFIRMOU EMBARQUE
                         async () => {
-                            await firebase.database().ref(`meeting/participants/${uid}`).update({ dropoffStatus: 'confirmed' });
-                            await firebase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({ dropoffStatus: 'confirmed' });
+                            await firebase.database().ref(`meeting/participants/${uid}`).update({
+                                embarkStatus: 'boarded'
+                            });
+                            await firebase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({
+                                status: 'boarded' // motorista vê: "A bordo ✓"
+                            });
                             await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
-                            showToast('Desembarque confirmado!', 'success');
+                            document.getElementById('passenger-embark-status').innerHTML = `
+            <div style="color:var(--success);font-weight:700">✅ Embarque iniciado!</div>
+            <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">
+              Você está no carro de ${notif.driverName}.
+            </div>
+          `;
+                            showToast('Embarque confirmado!', 'success');
                         },
+                        // NÃO EMBARCOU
                         async () => {
+                            await firebase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({
+                                status: 'not_boarded' // motorista vê: "Não embarcou"
+                            });
                             await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
+                            showToast('Informado ao motorista que não embarcou.', 'error');
                         }
                     );
-                } else if (notif.type === 'return_started') {
-                    document.getElementById('passenger-reunion-text').textContent = 'Trajeto de retorno iniciado!';
-                    await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
-                } else if (notif.type === 'driverCancelled') {
-                    // Fecha notificação pendente se houver
-                    document.getElementById('notification-modal').classList.add('hidden');
+                }
 
-                    // Mostra tela de "Motorista cancelou"
-                    showMeetingView('meeting-passenger-waiting');
+                // ─── NOTIFICAÇÃO 3: Retorno ───
+                else if (notif.type === 'return_started') {
+                    showNotification('info', 'home', 'Reunião encerrada!',
+                        'O motorista iniciou o retorno. Prepare-se para desembarcar.',
+                        async () => {
+                            await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
+                            showMeetingView('meeting-passenger-selected');
+                            document.getElementById('passenger-embark-status').innerHTML = `
+            <div style="color:var(--info);font-weight:700">🏠 Retorno iniciado</div>
+            <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">
+              Aguarde o motorista te deixar em casa.
+            </div>
+          `;
+                            document.getElementById('btn-passenger-confirm-presence').classList.remove('hidden');
+                        },
+                        null // sem botão recusar
+                    );
+                }
 
-                    // Atualiza o conteúdo da tela de espera com aviso
-                    const waitingDiv = document.getElementById('meeting-passenger-waiting');
-                    waitingDiv.querySelector('.status-label').textContent = 'Motorista cancelou';
-                    waitingDiv.querySelector('[style*="0.78rem"]').innerHTML =
-                        `<strong style="color:var(--danger)">${notif.driverName}</strong> cancelou a rota.<br>Procurando outro motorista...`;
-
-                    // Reseta após 4 segundos para o texto normal
-                    setTimeout(() => {
-                        const lbl = document.getElementById('meeting-passenger-waiting')?.querySelector('.status-label');
-                        const sub = document.getElementById('meeting-passenger-waiting')?.querySelector('[style*="0.78rem"]');
-                        if (lbl) lbl.textContent = 'Aguardando Motorista';
-                        if (sub) sub.innerHTML = 'Um motorista irá selecioná-lo em breve.<br>Mantenha o app aberto.';
-                    }, 4000);
-
-                    await firebase.database().ref(`meeting/notifications/${currentVendorUid}`).update({ handled: true });
-                } else if (notif.type === 'passengerCancelled') {
+                // ─── NOTIFICAÇÃO 4: Carona cancelou (motorista recebe) ───
+                else if (notif.type === 'passengerCancelled') {
                     showToast(`⚠️ ${notif.passengerName} cancelou a participação.`, 'error');
                     // Remove da seleção local se ainda estiver
                     selectedPassengers = selectedPassengers.filter(p => p.uid !== notif.passengerUid);
@@ -2722,14 +2759,32 @@
         }
 
         // ── NOTIFICATION MODAL ────────────────────────────────────────────────────
-        function showNotification(iconType, iconName, title, sub, onAccept, onRefuse) {
+        function showNotification(iconType, iconName, title, subHtml, onAccept, onRefuse) {
             const modal = document.getElementById('notification-modal');
-            document.getElementById('notif-icon').className = `notif-icon ${iconType}`;
-            document.getElementById('notif-icon').innerHTML = `<i data-lucide="${iconName}"></i>`;
-            document.getElementById('notif-title').textContent = title;
-            document.getElementById('notif-sub').innerHTML = sub;
-            modal.classList.remove('hidden');
+            const iconEl = document.getElementById('notif-icon');
+            const titleEl = document.getElementById('notif-title');
+            const subEl = document.getElementById('notif-sub');
+            const btns = document.getElementById('notif-btns');
+
+            iconEl.className = `notif-icon ${iconType}`;
+            iconEl.innerHTML = `<i data-lucide="${iconName}"></i>`;
+            titleEl.textContent = title;
+            subEl.innerHTML = subHtml;
+
+            // Se não há recusa (ex: retorno), mostra só "OK"
+            if (onRefuse === null) {
+                btns.innerHTML = `
+      <button class="btn-accept" style="grid-column:span 2" onclick="handleNotifAccept()">OK, entendi</button>
+    `;
+            } else {
+                btns.innerHTML = `
+      <button class="btn-accept" onclick="handleNotifAccept()">Aceitar</button>
+      <button class="btn-refuse" onclick="handleNotifRefuse()">Recusar</button>
+    `;
+            }
+
             currentNotifCallback = { accept: onAccept, refuse: onRefuse };
+            modal.classList.remove('hidden');
             lucide.createIcons();
         }
         async function handleNotifAccept() {
@@ -3086,28 +3141,43 @@
 
         async function startDriverRoute() {
             if (selectedPassengers.length === 0) return;
-            // Notify each selected passenger
+
             for (const p of selectedPassengers) {
+                // Notifica carona para ACEITAR A VIAGEM (não o embarque)
                 await firebase.database().ref(`meeting/notifications/${p.uid}`).set({
-                    type: 'pickup_request', driverUid: currentVendorUid, driverName: currentVendorName,
-                    handled: false, timestamp: Date.now()
+                    type: 'pickup_request',
+                    driverUid: currentVendorUid,
+                    driverName: currentVendorName,
+                    handled: false,
+                    timestamp: Date.now()
                 });
-                await firebase.database().ref(`meeting/participants/${p.uid}`).update({ driverUid: currentVendorUid, embarkStatus: 'selected' });
+                await firebase.database().ref(`meeting/participants/${p.uid}`).update({
+                    driverUid: currentVendorUid,
+                    embarkStatus: 'invitePending' // ← novo status: convite enviado, aguardando resposta
+                });
                 await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}/${p.uid}`).set({
-                    uid: p.uid, name: p.name, status: 'pending', order: selectedPassengers.indexOf(p)
+                    uid: p.uid,
+                    name: p.name,
+                    status: 'invitePending', // ← aguardando aceite
+                    order: selectedPassengers.indexOf(p)
                 });
             }
-            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'route', passengers: selectedPassengers.map(p => p.uid) });
+
+            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({
+                phase: 'route',
+                passengers: selectedPassengers.map(p => p.uid)
+            });
+
             showMeetingView('meeting-driver-route');
             loadPickupList();
-            showToast('Rota iniciada! Notificações enviadas.', 'success');
+            showToast('Rota iniciada! Convites enviados.', 'success');
         }
 
         function cancelDriver() {
             // Para o listener de caronas disponíveis
-            if (passengersListener) {
-                firebase.database().ref('meeting/participants').off('value', passengersListener);
-                passengersListener = null;
+            if (availablePassengersListener) {
+                firebase.database().ref('meeting/participants').off('value', availablePassengersListener);
+                availablePassengersListener = null;
             }
             currentMeetingRole = null;
             selectedPassengers = [];
@@ -3134,9 +3204,12 @@
                 const pickups = Object.values(raw);
                 container.innerHTML = '';
 
-                const allResolved = pickups.every(p => p.status === 'accepted' || p.status === 'refused');
+                // Considera resolvidos apenas se todos estiverem a bordo ou recusaram/não embarcaram
+                const allResolved = pickups.every(p => p.status === 'boarded' || p.status === 'refused' || p.status === 'not_boarded');
                 if (allResolved) {
                     document.getElementById('btn-driver-confirm-presence').classList.remove('hidden');
+                } else {
+                    document.getElementById('btn-driver-confirm-presence').classList.add('hidden');
                 }
 
                 pickups.sort((a, b) => (a.order || 0) - (b.order || 0)).forEach(p => {
@@ -3144,8 +3217,25 @@
                     div.className = 'passenger-item';
                     div.id = `pickup-item-${p.uid}`;
 
-                    const statusMap = { pending: 'Aguardando resp.', accepted: 'A bordo ✓', refused: 'Recusou', picked: 'A bordo ✓' };
-                    const badgeMap = { pending: 'waiting', accepted: 'picked', refused: 'refused' };
+                    const statusMap = {
+                        invitePending: 'Aguardando aceite',
+                        accepted_ride: 'Confirmado ✓',
+                        boarding_pending: 'Aguardando embarque',
+                        boarded: 'A bordo ✓',
+                        refused: 'Recusou',
+                        not_boarded: 'Não embarcou'
+                    };
+                    const badgeMap = {
+                        invitePending: 'waiting',
+                        accepted_ride: 'waiting', // dourado = confirmou viagem mas não embarcou
+                        boarding_pending: 'waiting',
+                        boarded: 'picked', // verde = embarcou
+                        refused: 'refused',
+                        not_boarded: 'refused'
+                    };
+
+                    // Botão "Peguei" só aparece para quem aceitou a viagem (accepted_ride)
+                    const showPickup = (p.status === 'accepted_ride');
 
                     div.innerHTML = `
         <div style="flex:1">
@@ -3155,9 +3245,9 @@
             <button class="p-btn-small chat" onclick="openMeetingChat('${p.uid}','${p.name}')">
               <i data-lucide="message-circle" style="display:inline;width:12px;height:12px"></i> Mensagem
             </button>
-            ${p.status === 'pending' || p.status === 'accepted' ? `
+            ${showPickup ? `
             <button class="p-btn-small pickup" onclick="driverPickedUp('${p.uid}','${p.name}')">
-              <i data-lucide="check" style="display:inline;width:12px;height:12px"></i> Peguei
+              <i data-lucide="map-pin" style="display:inline;width:12px;height:12px"></i> Peguei
             </button>` : ''}
           </div>
         </div>
@@ -3173,12 +3263,25 @@
         }
 
         async function driverPickedUp(passengerUid, passengerName) {
-            await firebase.database().ref(`meeting_notifications/${passengerUid}`).set({
-                type: 'pickup_request', driverUid: currentVendorUid, driverName: currentVendorName,
-                handled: false, timestamp: Date.now()
-            });
-            showToast(`Notificação enviada para ${passengerName}`, 'success');
-            loadPickupList();
+            try {
+                // Muda status para "motorista chegou, aguardando confirmação do carona"
+                await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}/${passengerUid}`).update({
+                    status: 'boarding_pending'
+                });
+
+                // Dispara notificação de EMBARQUE para o carona confirmar fisicamente
+                await firebase.database().ref(`meeting/notifications/${passengerUid}`).set({
+                    type: 'boardingrequest',
+                    driverUid: currentVendorUid,
+                    driverName: currentVendorName,
+                    handled: false,
+                    timestamp: Date.now()
+                });
+
+                showToast(`Notificação de embarque enviada para ${passengerName}.`, 'success');
+            } catch (e) {
+                showToast('Erro: ' + e.message, 'error');
+            }
         }
 
         async function driverConfirmPresence() {
@@ -3187,11 +3290,16 @@
             const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
             if (dist > 500) { showToast(`Muito longe (${Math.round(dist)}m).`, 'error'); return; }
             const meetDate = new Date().toISOString().split('T')[0];
-            await firebase.database().ref(`meeting_attendance/${meetDate}/${currentVendorUid}`).set({
-                name: currentVendorName, role: 'driver', confirmedAt: Date.now(),
+            await firebase.database().ref(`meeting/attendance/${meetDate}/${currentVendorUid}`).set({
+                name: currentVendorName,
+                role: 'driver',
+                confirmedAt: Date.now(),
                 passengers: selectedPassengers.map(p => p.name)
             });
-            await firebase.database().ref(`meeting_participants/${currentVendorUid}`).update({ phase: 'meeting', presenceConfirmed: true });
+            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({
+                phase: 'meeting',
+                presenceConfirmed: true
+            });
             document.getElementById('btn-driver-confirm-presence').classList.add('hidden');
             showDriverMeetingInProgress();
             showToast('Presença confirmada!', 'success');
@@ -3202,14 +3310,21 @@
         }
 
         async function endMeeting() {
-            await firebase.database().ref(`meeting_participants/${currentVendorUid}`).update({ phase: 'return' });
+            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({
+                phase: 'return'
+            });
             // Notify passengers return started
-            const snap = await firebase.database().ref(`meeting_driver_pickups/${currentVendorUid}`).once('value');
+            const snap = await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
             const pickups = Object.values(snap.val() || {});
             for (const p of pickups) {
-                if (p.status === 'accepted') {
-                    await firebase.database().ref(`meeting_notifications/${p.uid}`).set({
-                        type: 'return_started', driverUid: currentVendorUid, driverName: currentVendorName, handled: false, timestamp: Date.now()
+                // Notifica apenas quem embarcou
+                if (p.status === 'boarded') {
+                    await firebase.database().ref(`meeting/notifications/${p.uid}`).set({
+                        type: 'return_started',
+                        driverUid: currentVendorUid,
+                        driverName: currentVendorName,
+                        handled: false,
+                        timestamp: Date.now()
                     });
                 }
             }
@@ -3218,8 +3333,8 @@
         }
 
         async function loadDropoffList() {
-            const snap = await firebase.database().ref(`meeting_driver_pickups/${currentVendorUid}`).once('value');
-            const pickups = Object.values(snap.val() || {}).filter(p => p.status === 'accepted');
+            const snap = await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
+            const pickups = Object.values(snap.val() || {}).filter(p => p.status === 'boarded');
             const container = document.getElementById('driver-dropoff-list');
             container.innerHTML = '';
             if (pickups.length === 0) {
@@ -3245,8 +3360,12 @@
         }
 
         async function driverDropOff(passengerUid, passengerName) {
-            await firebase.database().ref(`meeting_notifications/${passengerUid}`).set({
-                type: 'dropoff_request', driverUid: currentVendorUid, driverName: currentVendorName, handled: false, timestamp: Date.now()
+            await firebase.database().ref(`meeting/notifications/${passengerUid}`).set({
+                type: 'dropoff_request',
+                driverUid: currentVendorUid,
+                driverName: currentVendorName,
+                handled: false,
+                timestamp: Date.now()
             });
             showToast(`Notificação de chegada enviada para ${passengerName}`, 'success');
             setTimeout(() => loadDropoffList(), 3000);
@@ -3255,14 +3374,20 @@
         async function driverArrivedHome() {
             const meetDate = new Date().toISOString().split('T')[0];
             // Save complete trip to history
-            const snap = await firebase.database().ref(`meeting_driver_pickups/${currentVendorUid}`).once('value');
+            const snap = await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
             const pickups = snap.val() || {};
-            await firebase.database().ref(`meeting_history/${meetDate}/${currentVendorUid}`).set({
-                driverName: currentVendorName, driverUid: currentVendorUid,
-                passengers: pickups, completedAt: Date.now(), date: meetDate
+            await firebase.database().ref(`meeting/history/${meetDate}/${currentVendorUid}`).set({
+                driverName: currentVendorName,
+                driverUid: currentVendorUid,
+                passengers: pickups,
+                completedAt: Date.now(),
+                date: meetDate
             });
-            await firebase.database().ref(`meeting_participants/${currentVendorUid}`).update({ status: 'finished', phase: 'done' });
-            await firebase.database().ref(`meeting_driver_pickups/${currentVendorUid}`).remove();
+            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({
+                status: 'finished',
+                phase: 'done'
+            });
+            await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
             showToast('Reunião finalizada! Dados salvos.', 'success');
             selectedPassengers = [];
             showMeetingView('meeting-role-select');
@@ -3270,22 +3395,36 @@
 
         // ── INDIVIDUAL FLOW ──────────────────────────────────────────────────────
         async function individualConfirmPresence() {
-            if (!meetingLocationData) { showToast('Local da reunião não definido.', 'error'); return; }
-            if (lastLat === 0) { showToast('GPS inativo. Inicie o rastreamento primeiro.', 'error'); return; }
+            if (!meetingLocationData) {
+                showToast('Local da reunião não definido.', 'error');
+                return;
+            }
+            if (lastLat === 0) {
+                showToast('GPS inativo. Inicie o rastreamento primeiro.', 'error');
+                return;
+            }
             const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
-            if (dist > 500) { showToast(`Muito longe do local (${Math.round(dist)}m). Aproxime-se.`, 'error'); return; }
+            if (dist > 500) {
+                showToast(`Muito longe do local (${Math.round(dist)}m). Aproxime-se.`, 'error');
+                return;
+            }
             const meetDate = new Date().toISOString().split('T')[0];
-            await firebase.database().ref(`meeting_attendance/${meetDate}/${currentVendorUid}`).set({
-                name: currentVendorName, role: 'individual', confirmedAt: Date.now()
+            await firebase.database().ref(`meeting/attendance/${meetDate}/${currentVendorUid}`).set({
+                name: currentVendorName,
+                role: 'individual',
+                confirmedAt: Date.now()
             });
-            await firebase.database().ref(`meeting_participants/${currentVendorUid}`).update({ presenceConfirmed: true, status: 'finished' });
+            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({
+                presenceConfirmed: true,
+                status: 'finished'
+            });
             document.getElementById('btn-individual-confirm').classList.add('hidden');
             document.getElementById('individual-confirmed').classList.remove('hidden');
             showToast('Presença confirmada!', 'success');
         }
 
         function cancelIndividual() {
-            firebase.database().ref(`meeting_participants/${currentVendorUid}`).remove();
+            firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
             currentMeetingRole = null;
             showMeetingView('meeting-role-select');
         }
