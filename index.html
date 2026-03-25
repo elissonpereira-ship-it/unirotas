@@ -1352,6 +1352,42 @@
             border-color: rgba(239, 68, 68, 0.4);
             color: var(--danger);
         }
+
+        /* ── HISTORY STYLES ─────────────────────── */
+        .meeting-history-item {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            animation: fadeIn 0.3s ease-out;
+        }
+        .mh-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .mh-badge {
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+        }
+        .mh-badge.driver { background: rgba(191,154,86,0.15); color: var(--gold); border: 1px solid var(--gold-border); }
+        .mh-badge.passenger { background: rgba(59,130,246,0.15); color: var(--info); border: 1px solid rgba(59,130,246,0.3); }
+        .mh-badge.individual { background: rgba(100,116,139,0.15); color: var(--muted); border: 1px solid var(--border); }
+        .mh-date { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+        .mh-people { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .mh-person-tag {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 0.72rem;
+            color: var(--text);
+        }
     </style>
 </head>
 
@@ -1395,6 +1431,9 @@
             </div>
             <div class="menu-item" id="menu-chat" onclick="showScreen('chat')">
                 <i data-lucide="message-circle"></i><span>Suporte / Chat</span>
+            </div>
+            <div class="menu-item" id="menu-historico" onclick="showScreen('historico')">
+                <i data-lucide="history"></i><span>Meu Histórico</span>
             </div>
             <hr class="menu-divider">
         </nav>
@@ -1508,10 +1547,43 @@
             <button id="btn-tracking" class="btn-primary" onclick="toggleTracking()" style="margin-bottom:24px">
                 INICIAR RASTREAMENTO
             </button>
+            <!-- BADGE REUNIÃO ATIVA -->
+            <div id="meeting-alert-card" class="hidden" style="
+              background: var(--gold-light); border: 1px solid var(--gold-border);
+              border-radius: 16px; padding: 16px 18px; margin-bottom: 16px;
+              display: flex; align-items: center; gap: 14px; cursor: pointer;
+            " onclick="showScreen('reuniao')">
+              <div style="width:44px;height:44px;border-radius:12px;background:rgba(191,154,86,0.2);
+                border:1px solid var(--gold-border);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i data-lucide="users" style="color:var(--gold);width:22px;height:22px;"></i>
+              </div>
+              <div style="flex:1">
+                <div style="font-weight:700;font-size:0.92rem;">Reunião Agendada</div>
+                <div id="meeting-alert-location" style="font-size:0.75rem;color:var(--muted);margin-top:2px;">
+                  Local sendo definido...
+                </div>
+              </div>
+              <i data-lucide="chevron-right" style="color:var(--gold);width:18px;height:18px;flex-shrink:0;"></i>
+            </div>
+
             <div id="route-list-container" class="hidden">
                 <div class="section-title"><i data-lucide="route" style="display:inline;width:13px;height:13px"></i>
                     Roteiro de Atendimento</div>
                 <div id="vendedor-route-list"></div>
+            </div>
+        </div>
+
+        <!-- HISTÓRICO VIEW -->
+        <div id="view-historico" class="scroll-area hidden">
+            <div class="section-title" style="margin-bottom:16px;">
+                <i data-lucide="history" style="display:inline;width:13px;height:13px"></i>
+                Minhas Reuniões
+            </div>
+            <div id="my-meeting-history-list">
+                <div class="empty-state">
+                    <i data-lucide="history"></i>
+                    <p>Carregando histórico...</p>
+                </div>
             </div>
         </div>
 
@@ -1803,7 +1875,7 @@
         // ── SCREEN NAVIGATION ────────────────────────────────────────────────────
         function showScreen(id) {
             closeSidebar();
-            const views = ['dashboard', 'map', 'chat', 'reuniao'];
+            const views = ['dashboard', 'map', 'chat', 'reuniao', 'historico'];
             views.forEach(v => {
                 const el = document.getElementById('view-' + v);
                 if (el) { el.classList.add('hidden'); el.style.display = ''; }
@@ -1819,6 +1891,8 @@
             if (id === 'map' && vMap) { google.maps.event.trigger(vMap, 'resize'); }
             if (id === 'chat') loadChat();
             if (id === 'reuniao') loadMeetingScreen();
+            if (id === 'historico') loadMyMeetingHistory();
+            lucide.createIcons();
         }
 
         // ── AUTH MODE TOGGLE ─────────────────────────────────────────────────────
@@ -1999,40 +2073,135 @@
 
         // ── MEETING LOCATION LISTENER ─────────────────────────────────────────────
         function listenForMeetingLocation() {
-            firebase.database().ref('meeting_config/active_location').on('value', snap => {
+            firebase.database().ref('meeting/config/activeLocation').on('value', snap => {
                 const loc = snap.val();
                 meetingLocationData = loc;
+                const badge = document.getElementById('meeting-alert-card');
+
                 if (loc) {
-                    document.getElementById('meeting-location-name').textContent = loc.name || 'Local definido';
-                    document.getElementById('individual-location-details').innerHTML = `
-                        <strong style="color:var(--text)">${loc.name}</strong><br>
-                        <span>${loc.address || 'Endereço não informado'}</span>`;
+                    document.getElementById('meeting-location-name').textContent = loc.name + ' (Local definido)';
+                    document.getElementById('individual-location-details').innerHTML =
+                        `<strong style="color:var(--text)">${loc.name}</strong><br><span>${loc.address || 'Endereço não informado'}</span>`;
+
+                    // Mostra badge no dashboard
+                    if (badge) {
+                        badge.classList.remove('hidden');
+                        document.getElementById('meeting-alert-location').textContent = loc.name + ' — ' + (loc.address || '');
+                        lucide.createIcons();
+                    }
                 } else {
                     document.getElementById('meeting-location-name').textContent = 'Aguardando local definido...';
+                    if (badge) badge.classList.add('hidden');
                 }
             });
         }
 
+        async function loadMyMeetingHistory() {
+            const container = document.getElementById('my-meeting-history-list');
+            container.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
+
+            try {
+                const snap = await firebase.database().ref('meeting/history').once('value');
+                const allDates = snap.val();
+                const myItems = [];
+
+                if (allDates) {
+                    Object.entries(allDates).forEach(([date, drivers]) => {
+                        // Como motorista
+                        if (drivers[currentVendorUid]) {
+                            const d = drivers[currentVendorUid];
+                            const passengers = d.passengers ? Object.values(d.passengers) : [];
+                            myItems.push({ date, role: 'driver', data: d, passengers });
+                        }
+                        // Como carona
+                        Object.values(drivers).forEach(d => {
+                            const pax = d.passengers ? Object.values(d.passengers) : [];
+                            const me = pax.find(p => p.uid === currentVendorUid);
+                            if (me) {
+                                myItems.push({ date, role: 'passenger', driverName: d.driverName, data: me });
+                            }
+                        });
+                    });
+                }
+
+                // Também busca como individual
+                const snapAtt = await firebase.database().ref('meeting/attendance').once('value');
+                const allAtt = snapAtt.val();
+                if (allAtt) {
+                    Object.entries(allAtt).forEach(([date, people]) => {
+                        if (people[currentVendorUid]?.role === 'individual') {
+                            myItems.push({ date, role: 'individual', data: people[currentVendorUid] });
+                        }
+                    });
+                }
+
+                if (myItems.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><i data-lucide="history"></i><p>Nenhuma reunião encontrada.</p></div>';
+                    lucide.createIcons();
+                    return;
+                }
+
+                // Ordena do mais recente para o mais antigo
+                myItems.sort((a, b) => b.date.localeCompare(a.date));
+
+                const roleLabel = { driver: 'Motorista', passenger: 'Carona', individual: 'Individual' };
+                const roleBadge = { driver: 'driver', passenger: 'passenger', individual: 'individual' };
+
+                container.innerHTML = myItems.map(item => {
+                    const [y, m, d] = item.date.split('-');
+                    const dateFormatted = `${d}/${m}/${y}`;
+
+                    let detail = '';
+                    if (item.role === 'driver' && item.passengers?.length > 0) {
+                        const accepted = item.passengers.filter(p => p.status === 'accepted');
+                        detail = `<div class="mh-people">${accepted.map(p =>
+                            `<span class="mh-person-tag">${p.name || 'Carona'}</span>`
+                        ).join('')}</div>`;
+                    } else if (item.role === 'passenger') {
+                        detail = `<div style="font-size:0.75rem;color:var(--muted);margin-top:6px">
+          Motorista: <strong style="color:var(--text)">${item.driverName || '—'}</strong>
+        </div>`;
+                    }
+
+                    return `
+        <div class="meeting-history-item">
+          <div class="mh-header">
+            <span class="mh-badge ${roleBadge[item.role]}">${roleLabel[item.role]}</span>
+            <span class="mh-date">${dateFormatted}</span>
+          </div>
+          ${detail}
+        </div>
+      `;
+                }).join('');
+
+                lucide.createIcons();
+            } catch (e) {
+                container.innerHTML = `<div class="empty-state"><p>Erro: ${e.message}</p></div>`;
+            }
+        }
+
         // ── MEETING NOTIFICATION LISTENER ────────────────────────────────────────
         function listenForMeetingNotifications(uid) {
-            firebase.database().ref(`meeting_notifications/${uid}`).on('value', snap => {
+            firebase.database().ref(`meeting/notifications/${uid}`).on('value', async snap => {
                 const notif = snap.val();
                 if (!notif || notif.handled) return;
+
                 if (notif.type === 'pickup_request') {
                     showNotification(
                         'gold', 'car',
                         'Motorista chegou!',
                         `<strong>${notif.driverName}</strong> chegou para buscá-lo.<br>Confirme o embarque.`,
                         async () => {
-                            await firebase.database().ref(`meeting_participants/${uid}`).update({ embarkStatus: 'accepted', driverUid: notif.driverUid });
-                            await firebase.database().ref(`meeting_driver_pickups/${notif.driverUid}/${uid}`).update({ status: 'accepted' });
-                            await firebase.database().ref(`meeting_notifications/${uid}`).update({ handled: true });
+                            await firebase.database().ref(`meeting/participants/${uid}`).update({ embarkStatus: 'accepted', driverUid: notif.driverUid });
+                            await firebase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({ status: 'accepted' });
+                            await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
                             showPassengerEmbarked(notif.driverName);
+                            listenForDriverInfo(notif.driverUid);
                         },
                         async () => {
-                            await firebase.database().ref(`meeting_participants/${uid}`).update({ embarkStatus: 'refused' });
-                            await firebase.database().ref(`meeting_driver_pickups/${notif.driverUid}/${uid}`).update({ status: 'refused' });
-                            await firebase.database().ref(`meeting_notifications/${uid}`).update({ handled: true });
+                            await firebase.database().ref(`meeting/participants/${uid}`).update({ embarkStatus: 'refused' });
+                            await firebase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({ status: 'refused' });
+                            await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
                             showToast('Embarque recusado.', 'error');
                         }
                     );
@@ -2042,18 +2211,40 @@
                         'Confirmação de chegada',
                         `Você chegou em casa? Confirme o desembarque.`,
                         async () => {
-                            await firebase.database().ref(`meeting_participants/${uid}`).update({ dropoffStatus: 'confirmed' });
-                            await firebase.database().ref(`meeting_driver_pickups/${notif.driverUid}/${uid}`).update({ dropoffStatus: 'confirmed' });
-                            await firebase.database().ref(`meeting_notifications/${uid}`).update({ handled: true });
+                            await firebase.database().ref(`meeting/participants/${uid}`).update({ dropoffStatus: 'confirmed' });
+                            await firebase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({ dropoffStatus: 'confirmed' });
+                            await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
                             showToast('Desembarque confirmado!', 'success');
                         },
                         async () => {
-                            await firebase.database().ref(`meeting_notifications/${uid}`).update({ handled: true });
+                            await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
                         }
                     );
                 } else if (notif.type === 'return_started') {
                     document.getElementById('passenger-reunion-text').textContent = 'Trajeto de retorno iniciado!';
-                    firebase.database().ref(`meeting_notifications/${uid}`).update({ handled: true });
+                    await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
+                } else if (notif.type === 'driverCancelled') {
+                    // Fecha notificação pendente se houver
+                    document.getElementById('notification-modal').classList.add('hidden');
+
+                    // Mostra tela de "Motorista cancelou"
+                    showMeetingView('meeting-passenger-waiting');
+
+                    // Atualiza o conteúdo da tela de espera com aviso
+                    const waitingDiv = document.getElementById('meeting-passenger-waiting');
+                    waitingDiv.querySelector('.status-label').textContent = 'Motorista cancelou';
+                    waitingDiv.querySelector('[style*="0.78rem"]').innerHTML =
+                        `<strong style="color:var(--danger)">${notif.driverName}</strong> cancelou a rota.<br>Procurando outro motorista...`;
+
+                    // Reseta após 4 segundos para o texto normal
+                    setTimeout(() => {
+                        const lbl = document.getElementById('meeting-passenger-waiting')?.querySelector('.status-label');
+                        const sub = document.getElementById('meeting-passenger-waiting')?.querySelector('[style*="0.78rem"]');
+                        if (lbl) lbl.textContent = 'Aguardando Motorista';
+                        if (sub) sub.innerHTML = 'Um motorista irá selecioná-lo em breve.<br>Mantenha o app aberto.';
+                    }, 4000);
+
+                    await firebase.database().ref(`meeting/notifications/${currentVendorUid}`).update({ handled: true });
                 }
             });
         }
@@ -2097,7 +2288,7 @@
         function loadMeetingScreen() {
             // Check if vendor is already in a meeting session
             if (!currentVendorUid) return;
-            firebase.database().ref(`meeting_participants/${currentVendorUid}`).once('value').then(snap => {
+            firebase.database().ref(`meeting/participants/${currentVendorUid}`).once('value').then(snap => {
                 const data = snap.val();
                 if (data && data.role && data.status !== 'finished') {
                     restoreMeetingState(data);
@@ -2143,21 +2334,21 @@
             if (!currentVendorUid) return;
             currentMeetingRole = role;
             if (role === 'passenger') {
-                firebase.database().ref(`meeting_participants/${currentVendorUid}`).set({
+                firebase.database().ref(`meeting/participants/${currentVendorUid}`).set({
                     uid: currentVendorUid, name: currentVendorName, role: 'passenger',
                     embarkStatus: 'waiting', status: 'active', timestamp: Date.now()
                 });
                 showMeetingView('meeting-passenger-waiting');
                 showToast('Aguardando motorista...', 'success');
             } else if (role === 'driver') {
-                firebase.database().ref(`meeting_participants/${currentVendorUid}`).set({
+                firebase.database().ref(`meeting/participants/${currentVendorUid}`).set({
                     uid: currentVendorUid, name: currentVendorName, role: 'driver',
                     phase: 'selecting', status: 'active', timestamp: Date.now()
                 });
                 showMeetingView('meeting-driver-select');
                 loadAvailablePassengers();
             } else if (role === 'individual') {
-                firebase.database().ref(`meeting_participants/${currentVendorUid}`).set({
+                firebase.database().ref(`meeting/participants/${currentVendorUid}`).set({
                     uid: currentVendorUid, name: currentVendorName, role: 'individual',
                     status: 'active', presenceConfirmed: false, timestamp: Date.now()
                 });
@@ -2168,7 +2359,7 @@
         // ── PASSENGER FLOW ───────────────────────────────────────────────────────
         function cancelPassengerWaiting() {
             if (!currentVendorUid) return;
-            firebase.database().ref(`meeting_participants/${currentVendorUid}`).remove();
+            firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
             currentMeetingRole = null;
             showMeetingView('meeting-role-select');
             showToast('Participação cancelada.');
@@ -2178,18 +2369,40 @@
             currentDriverUid = driverUid;
             firebase.database().ref(`vendedores/${driverUid}`).on('value', snap => {
                 const d = snap.val();
-                if (d) {
-                    document.getElementById('passenger-driver-name').textContent = `Motorista: ${d.name || 'Em trajeto...'}`;
-                    if (d.lat && lastLat) {
-                        const dist = calcDistance(lastLat, lastLon, d.lat, d.lon);
-                        const eta = Math.round(dist / 1000 / 40 * 60);
-                        document.getElementById('passenger-eta-text').textContent = `Estimativa de chegada: ~${eta} min`;
-                    }
-                }
+                if (!d) return;
+                document.getElementById('passenger-driver-name').textContent = d.name || 'Motorista';
+                
+                // ✅ ADICIONE ESTA LINHA
+                updatePassengerETA(driverUid);
             });
 
             // ✅ ADICIONE ISSO: escuta mensagens do motorista
             listenForMeetingChatMessages(driverUid);
+        }
+
+        async function updatePassengerETA(driverUid) {
+            const etaEl = document.getElementById('passenger-eta-text');
+            if (!etaEl) return;
+
+            try {
+                const snap = await firebase.database().ref(`vendedores/${driverUid}`).once('value');
+                const driver = snap.val();
+                if (!driver?.lat || !driver?.lng || !lastLat) return;
+
+                const directionsService = new google.maps.DirectionsService();
+                const result = await directionsService.route({
+                    origin: new google.maps.LatLng(driver.lat, driver.lng),
+                    destination: new google.maps.LatLng(lastLat, lastLon),
+                    travelMode: google.maps.TravelMode.DRIVING
+                });
+
+                const leg = result.routes[0]?.legs[0];
+                if (leg) {
+                    etaEl.textContent = `🚗 Motorista a ${leg.distance.text} — chega em ~${leg.duration.text}`;
+                }
+            } catch (e) {
+                // Silencioso: mantém texto padrão
+            }
         }
 
         async function passengerConfirmPresence() {
@@ -2198,10 +2411,10 @@
             if (lastLat === 0) { showToast('GPS inativo. Inicie o rastreamento.', 'error'); return; }
             const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
             if (dist > 500) { showToast(`Muito longe do local (${Math.round(dist)}m). Aproxime-se.`, 'error'); return; }
-            await firebase.database().ref(`meeting_participants/${currentVendorUid}`).update({ presenceConfirmed: true, presenceTime: Date.now() });
+            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ presenceConfirmed: true, presenceTime: Date.now() });
             // Log presence in meeting attendance
             const meetDate = new Date().toISOString().split('T')[0];
-            await firebase.database().ref(`meeting_attendance/${meetDate}/${currentVendorUid}`).set({
+            await firebase.database().ref(`meeting/attendance/${meetDate}/${currentVendorUid}`).set({
                 name: currentVendorName, role: 'passenger', confirmedAt: Date.now()
             });
             document.getElementById('btn-passenger-confirm-presence').classList.add('hidden');
@@ -2210,27 +2423,47 @@
         }
 
         // ── DRIVER FLOW ──────────────────────────────────────────────────────────
-        async function loadAvailablePassengers() {
+        let passengersListener = null;
+
+        function loadAvailablePassengers() {
             const list = document.getElementById('available-passengers-list');
             list.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
-            const snap = await firebase.database().ref('meeting_participants').once('value');
-            const all = snap.val() || {};
-            const waiting = Object.values(all).filter(p => p.role === 'passenger' && p.embarkStatus === 'waiting' && p.uid !== currentVendorUid);
-            list.innerHTML = '';
-            if (waiting.length === 0) {
-                list.innerHTML = '<div class="empty-state"><i data-lucide="users"></i><p>Nenhum vendedor aguardando carona no momento.</p></div>';
-                lucide.createIcons(); return;
+
+            // Remove listener anterior se existir
+            if (passengersListener) {
+                firebase.database().ref('meeting/participants').off('value', passengersListener);
             }
-            waiting.forEach(p => {
-                const div = document.createElement('div');
-                div.className = 'driver-item';
-                div.id = `passenger-select-${p.uid}`;
-                div.innerHTML = `<div><div class="d-name">${p.name}</div><div class="d-sub">Aguardando carona</div></div>
-                <i data-lucide="circle" class="d-check" id="check-${p.uid}" style="opacity:0.2"></i>`;
-                div.onclick = () => togglePassengerSelection(p);
-                list.appendChild(div);
+
+            // Escuta em tempo real
+            passengersListener = firebase.database().ref('meeting/participants').on('value', snap => {
+                const all = snap.val();
+                const waiting = all
+                    ? Object.values(all).filter(p => p.role === 'passenger' && p.embarkStatus === 'waiting' && p.uid !== currentVendorUid)
+                    : [];
+
+                list.innerHTML = '';
+                if (waiting.length === 0) {
+                    list.innerHTML = '<div class="empty-state"><i data-lucide="users"></i><p>Nenhum vendedor aguardando carona no momento.</p></div>';
+                    lucide.createIcons();
+                    return;
+                }
+
+                waiting.forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = 'driver-item';
+                    div.id = `passenger-select-${p.uid}`;
+                    div.innerHTML = `
+        <div>
+          <div class="d-name">${p.name}</div>
+          <div class="d-sub">Aguardando carona</div>
+        </div>
+        <i data-lucide="circle" class="d-check" id="check-${p.uid}" style="opacity:0.2"></i>
+      `;
+                    div.onclick = () => togglePassengerSelection(p);
+                    list.appendChild(div);
+                });
+                lucide.createIcons();
             });
-            lucide.createIcons();
         }
 
         function togglePassengerSelection(passenger) {
@@ -2256,25 +2489,30 @@
             if (selectedPassengers.length === 0) return;
             // Notify each selected passenger
             for (const p of selectedPassengers) {
-                await firebase.database().ref(`meeting_notifications/${p.uid}`).set({
+                await firebase.database().ref(`meeting/notifications/${p.uid}`).set({
                     type: 'pickup_request', driverUid: currentVendorUid, driverName: currentVendorName,
                     handled: false, timestamp: Date.now()
                 });
-                await firebase.database().ref(`meeting_participants/${p.uid}`).update({ driverUid: currentVendorUid, embarkStatus: 'selected' });
-                await firebase.database().ref(`meeting_driver_pickups/${currentVendorUid}/${p.uid}`).set({
+                await firebase.database().ref(`meeting/participants/${p.uid}`).update({ driverUid: currentVendorUid, embarkStatus: 'selected' });
+                await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}/${p.uid}`).set({
                     uid: p.uid, name: p.name, status: 'pending', order: selectedPassengers.indexOf(p)
                 });
             }
-            await firebase.database().ref(`meeting_participants/${currentVendorUid}`).update({ phase: 'route', passengers: selectedPassengers.map(p => p.uid) });
+            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'route', passengers: selectedPassengers.map(p => p.uid) });
             showMeetingView('meeting-driver-route');
             loadPickupList();
             showToast('Rota iniciada! Notificações enviadas.', 'success');
         }
 
         function cancelDriver() {
+            // Para o listener de caronas disponíveis
+            if (passengersListener) {
+                firebase.database().ref('meeting/participants').off('value', passengersListener);
+                passengersListener = null;
+            }
             currentMeetingRole = null;
             selectedPassengers = [];
-            firebase.database().ref(`meeting_participants/${currentVendorUid}`).remove();
+            firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
             showMeetingView('meeting-role-select');
         }
 
@@ -2691,22 +2929,32 @@
             });
         };
         async function cancelDriverRoute() {
-            // Notifica cada carona selecionado que o motorista cancelou
             if (selectedPassengers && selectedPassengers.length > 0) {
                 for (const p of selectedPassengers) {
+                    // Reseta status do carona para "waiting" (aparece novamente na lista)
                     await firebase.database().ref(`meeting/participants/${p.uid}`).update({
                         embarkStatus: 'waiting',
                         driverUid: null
+                    });
+                    // Envia notificação de cancelamento para o carona
+                    await firebase.database().ref(`meeting/notifications/${p.uid}`).set({
+                        type: 'driverCancelled',
+                        driverName: currentVendorName,
+                        handled: false,
+                        timestamp: Date.now()
                     });
                     await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}/${p.uid}`).remove();
                 }
             }
 
-            // Remove os dados do motorista no Firebase
             await firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
             await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
 
-            // Reseta o estado local
+            if (passengersListener) {
+                firebase.database().ref('meeting/participants').off('value', passengersListener);
+                passengersListener = null;
+            }
+
             currentMeetingRole = null;
             selectedPassengers = [];
 
