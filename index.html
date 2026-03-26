@@ -157,6 +157,41 @@
             margin: 10px 0;
         }
 
+        /* Badge / Notif Dot */
+        .notif-badge {
+            position: relative;
+        }
+
+        .notif-badge::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 8px;
+            height: 8px;
+            background: #ef4444;
+            border-radius: 50%;
+            border: 1.5px solid var(--surface);
+            display: none;
+        }
+
+        .notif-badge.active::after {
+            display: block;
+        }
+
+        .chat-badge-dot {
+            width: 8px;
+            height: 8px;
+            background: #ef4444;
+            border-radius: 50%;
+            display: none;
+            margin-left: 6px;
+        }
+
+        .chat-badge-dot.active {
+            display: inline-block;
+        }
+
         .sb-footer {
             padding: 16px 12px 30px;
             border-top: 1px solid var(--border);
@@ -1736,11 +1771,13 @@
             border-radius: 12px;
             padding: 12px 20px;
             font-size: 0.85rem;
-            white-space: nowrap;
             z-index: 9999;
             opacity: 0;
             transition: all 0.3s;
             pointer-events: none;
+            text-align: center;
+            max-width: 90%;
+            line-height: 1.4;
         }
 
         #toast.show {
@@ -2007,7 +2044,10 @@
                 <i data-lucide="map"></i><span>Visualizar Rota</span>
             </div>
             <div class="menu-item" id="menu-chat" onclick="showScreen('chat')">
-                <i data-lucide="message-circle"></i><span>Suporte / Chat</span>
+                <div class="notif-badge" id="badge-support">
+                    <i data-lucide="message-circle"></i>
+                </div>
+                <span>Suporte / Chat</span>
             </div>
             <div class="menu-item" id="menu-historico" onclick="showScreen('historico')">
                 <i data-lucide="history"></i><span>Meu Histórico</span>
@@ -2297,7 +2337,7 @@
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                         <h3 style="margin:0">STATUS DO EMBARQUE</h3>
                         <div id="passenger-driver-chat-wrap" style="display:none;">
-                            <button class="p-btn-small chat" onclick="openMeetingChatWithDriver()"
+                            <button class="p-btn-small chat notif-badge" id="btn-passenger-chat-driver" onclick="openMeetingChatWithDriver()"
                                 style="padding:6px 12px; font-size:0.75rem;">
                                 <i data-lucide="message-circle" style="width:14px;"></i> Chat
                             </button>
@@ -2317,7 +2357,8 @@
                 <div id="passenger-reunion-status" class="hidden" style="text-align:center;padding:20px 0;">
                     <div class="big-status-icon success"><i data-lucide="users"></i></div>
                     <div class="status-label" style="color:var(--success)">Em Reunião</div>
-                    <div style="font-size:0.78rem;color:var(--muted);margin-top:6px;">Aguardando término para iniciar o retorno.</div>
+                    <div style="font-size:0.78rem;color:var(--muted);margin-top:6px;">Aguardando término para iniciar o
+                        retorno.</div>
                 </div>
 
                 <button class="action-btn danger" style="margin-top:10px" onclick="cancelPassengerWaiting()">
@@ -2394,11 +2435,6 @@
                 </div>
 
                 <!-- BOTOES DE AÇÃO -->
-                <button id="btn-confirm-all-presence" class="action-btn gold hidden" onclick="confirmAllPresence()"
-                    disabled style="opacity:0.5; cursor:not-allowed;">
-                    <i data-lucide="lock" id="icon-confirm-all"></i> Confirmar Presença de Todos (GPS)
-                </button>
-
                 <button id="btn-driver-confirm-presence" class="action-btn gold hidden"
                     onclick="driverConfirmPresence()">
                     <i data-lucide="check-circle"></i> Confirmar Minha Presença (GPS)
@@ -2410,11 +2446,13 @@
 
                 <div id="driver-meeting-in-progress" class="hidden" style="text-align:center;padding:20px 0;">
                     <div class="big-status-icon success"><i data-lucide="users"></i></div>
-                    <div class="status-label" style="color:var(--success); margin-bottom: 20px;">Em Reunião (Fase Atual)</div>
+                    <div class="status-label" style="color:var(--success); margin-bottom: 20px;">Em Reunião (Fase Atual)
+                    </div>
                     <button class="action-btn danger" style="margin-top:20px;" onclick="endMeeting()">
                         <i data-lucide="flag"></i> Encerrar Reunião
                     </button>
-                    <div style="font-size:0.75rem;color:var(--muted);margin-top:10px;">Clique acima para encerrar e iniciar o retorno.</div>
+                    <div style="font-size:0.75rem;color:var(--muted);margin-top:10px;">Clique acima para encerrar e
+                        iniciar o retorno.</div>
                 </div>
             </div>
 
@@ -2717,7 +2755,17 @@
                     enterApp(res.user.uid);
                 }
             } catch (e) {
-                showToast('Falha: ' + (e.message || 'Erro desconhecido'), 'error');
+                let msg = 'Ocorreu um erro ao acessar o sistema. Tente novamente.';
+                if (e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password') {
+                    msg = 'CPF ou senha incorretos. Verifique suas credenciais.';
+                } else if (e.code === 'auth/too-many-requests') {
+                    msg = 'Muitas tentativas sem sucesso. Por segurança, aguarde alguns minutos antes de tentar novamente.';
+                } else if (e.code === 'auth/network-request-failed') {
+                    msg = 'Falha de conexão. Verifique sua internet e tente novamente.';
+                } else {
+                    msg = 'Falha: ' + (e.message || 'Erro desconhecido');
+                }
+                showToast(msg, 'error');
             } finally {
                 isProcessingAuth = false; btn.textContent = orig; btn.disabled = false;
             }
@@ -2742,7 +2790,21 @@
                 });
                 closeVerifyModal();
                 enterApp(uid);
-            } catch (e) { showToast('Erro: ' + e.message, 'error'); }
+            } catch (e) {
+                let msg = 'Erro ao validar cadastro. Tente novamente.';
+                if (e.code === 'auth/email-already-in-use') {
+                    msg = 'Este CPF já está cadastrado no sistema.';
+                } else if (e.code === 'auth/invalid-email') {
+                    msg = 'E-mail de verificação inválido.';
+                } else if (e.code === 'auth/weak-password') {
+                    msg = 'A senha deve ter pelo menos 6 caracteres.';
+                } else if (e.code === 'auth/network-request-failed') {
+                    msg = 'Falha de conexão. Verifique sua internet.';
+                } else {
+                    msg = 'Erro: ' + (e.message || 'Erro desconhecido');
+                }
+                showToast(msg, 'error');
+            }
             finally { btn.textContent = 'CONFIRMAR CÓDIGO'; btn.disabled = false; }
         }
         function closeVerifyModal() { document.getElementById('verify-modal').style.display = 'none'; }
@@ -3494,6 +3556,9 @@
                     }
                 }
             });
+
+            // ✅ Escuta chat com motorista
+            listenForMeetingChatMessages(driverUid);
         }
 
         function openMeetingChatWithDriver() {
@@ -3758,20 +3823,11 @@
                 const pickups = Object.values(raw);
                 container.innerHTML = '';
 
-                // Considera resolvidos apenas se todos estiverem a bordo ou recusaram/não embarcaram
+                // Botão "Confirmar Minha Presença" só aparece quando todos os embarques foram resolvidos
                 const allResolved = pickups.every(p => p.status === 'boarded' || p.status === 'refused' || p.status === 'not_boarded');
                 if (allResolved) {
-                    // Substitui o botão individual pelo coletivo se houver passageiros boarded
-                    const hasBoarded = pickups.some(p => p.status === 'boarded');
-                    if (hasBoarded) {
-                        document.getElementById('btn-confirm-all-presence').classList.remove('hidden');
-                        document.getElementById('btn-driver-confirm-presence').classList.add('hidden');
-                    } else {
-                        document.getElementById('btn-confirm-all-presence').classList.add('hidden');
-                        document.getElementById('btn-driver-confirm-presence').classList.remove('hidden');
-                    }
+                    document.getElementById('btn-driver-confirm-presence').classList.remove('hidden');
                 } else {
-                    document.getElementById('btn-confirm-all-presence').classList.add('hidden');
                     document.getElementById('btn-driver-confirm-presence').classList.add('hidden');
                 }
 
@@ -3805,7 +3861,7 @@
           <div class="p-name">${p.name}</div>
           <div class="p-addr">${p.address || ''}</div>
           <div class="p-actions">
-            <button class="p-btn-small chat" onclick="openMeetingChat('${p.uid}','${p.name}')">
+            <button class="p-btn-small chat notif-badge" id="dot-chat-${p.uid}" onclick="openMeetingChat('${p.uid}','${p.name}')">
               <i data-lucide="message-circle" style="display:inline;width:12px;height:12px"></i> Mensagem
             </button>
             ${showPickup ? `
@@ -3819,6 +3875,8 @@
         </span>
       `;
                     container.appendChild(div);
+                    // ✅ Garante que o motorista está ouvindo mensagens deste carona
+                    listenForMeetingChatMessages(p.uid);
                 });
 
                 lucide.createIcons();
@@ -3857,7 +3915,7 @@
             if (currentPhase === 'meeting' || currentPhase === 'return') return;
 
             const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
-            const IS_NEAR = dist < 150; 
+            const IS_NEAR = dist < 150;
 
             // 1. Botão Individual
             const btnInd = document.getElementById('btn-individual-confirm');
@@ -3875,31 +3933,14 @@
                 btnPax.style.opacity = IS_NEAR ? '1' : '0.5';
             }
 
-            // 3. Botões Motorista
-            const btnDriverMe = document.getElementById('btn-driver-confirm-presence');
-            const btnAll = document.getElementById('btn-confirm-all-presence');
-            const iconAll = document.getElementById('icon-confirm-all');
-
             if (currentMeetingRole === 'driver') {
-                if (IS_NEAR) {
-                    if (btnDriverMe) { btnDriverMe.classList.remove('hidden'); btnDriverMe.disabled = false; btnDriverMe.style.opacity = '1'; }
-                    if (btnAll) {
-                        btnAll.classList.remove('hidden');
-                        btnAll.disabled = false;
-                        btnAll.style.opacity = '1';
-                        btnAll.style.cursor = 'pointer';
-                        if (iconAll) iconAll.setAttribute('data-lucide', 'unlock');
-                    }
-                } else {
-                    if (btnDriverMe) { btnDriverMe.classList.remove('hidden'); btnDriverMe.disabled = true; btnDriverMe.style.opacity = '0.5'; }
-                    if (btnAll) {
-                        btnAll.classList.remove('hidden');
-                        btnAll.disabled = true;
-                        btnAll.style.opacity = '0.5';
-                        btnAll.style.cursor = 'not-allowed';
-                        if (iconAll) iconAll.setAttribute('data-lucide', 'lock');
-                    }
+                if (btnDriverMe) {
+                    btnDriverMe.classList.toggle('hidden', !IS_NEAR);
+                    btnDriverMe.disabled = !IS_NEAR;
+                    btnDriverMe.style.opacity = IS_NEAR ? '1' : '0.5';
                 }
+                // Botão "Confirmar de todos" removido conforme solicitação
+                if (btnAll) btnAll.classList.add('hidden');
                 lucide.createIcons();
             }
         }
@@ -3912,7 +3953,11 @@
             try {
                 const meetDate = new Date().toISOString().split('T')[0];
                 await firebase.database().ref(`meeting/attendance/${meetDate}/${currentVendorUid}`).set({
-                    name: currentVendorName, role: 'individual', confirmedAt: Date.now()
+                    name: currentVendorName,
+                    role: 'individual',
+                    locationId: meetingLocationData.id || 'none',
+                    locationName: meetingLocationData.name,
+                    confirmedAt: Date.now()
                 });
                 await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ presenceConfirmed: true });
                 document.getElementById('btn-individual-confirm').classList.add('hidden');
@@ -3935,8 +3980,12 @@
             try {
                 const today = new Date().toISOString().split('T')[0];
                 await firebase.database().ref(`meeting/attendance/${today}/${currentVendorUid}`).set({
-                    name: currentVendorName, role: 'passenger', driverUid: currentDriverUid || 'none',
-                    locationName: meetingLocationData.name, timestamp: Date.now()
+                    name: currentVendorName,
+                    role: 'passenger',
+                    driverUid: currentDriverUid || 'none',
+                    locationId: meetingLocationData.id || 'none',
+                    locationName: meetingLocationData.name,
+                    timestamp: Date.now()
                 });
                 await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ presenceConfirmed: true });
                 document.getElementById('btn-passenger-confirm-presence').classList.add('hidden');
@@ -3953,7 +4002,11 @@
             try {
                 const today = new Date().toISOString().split('T')[0];
                 await firebase.database().ref(`meeting/attendance/${today}/${currentVendorUid}`).set({
-                    name: currentVendorName, role: 'driver', confirmedAt: Date.now()
+                    name: currentVendorName,
+                    role: 'driver',
+                    locationId: meetingLocationData.id || 'none',
+                    locationName: meetingLocationData.name,
+                    confirmedAt: Date.now()
                 });
                 await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'meeting', presenceConfirmed: true });
                 document.getElementById('btn-driver-confirm-presence').classList.add('hidden');
@@ -3962,56 +4015,7 @@
             } catch (e) { showToast('Erro: ' + e.message, 'error'); }
         }
 
-        async function confirmAllPresence() {
-            if (!meetingLocationData) return;
-            const today = new Date().toISOString().split('T')[0];
-            const ts = Date.now();
-            showToast('Validando GPS de todos...', 'info');
-            
-            try {
-                // 1. Confirma o Motorista
-                await firebase.database().ref(`meeting/attendance/${today}/${currentVendorUid}`).set({ 
-                    name: currentVendorName, role: 'driver', confirmedAt: ts, method: 'collective' 
-                });
-                await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'meeting', presenceConfirmed: true });
-
-                // 2. Busca caronas BOARDED e valida GPS Individual de cada um
-                const snap = await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
-                const pickups = snap.val() ? Object.values(snap.val()) : [];
-                
-                let successCount = 0;
-                let fraudCount = 0;
-
-                for (const p of pickups) {
-                    if (p.status === 'boarded') {
-                        // VERIFICAÇÃO ANTI-FRAUDE: Pega GPS atual do carona no Firebase
-                        const pSnap = await firebase.database().ref(`meeting/participants/${p.uid}`).once('value');
-                        const pData = pSnap.val();
-                        
-                        if (pData && pData.lat && pData.lng) {
-                            const pDist = calcDistance(pData.lat, pData.lng, meetingLocationData.lat, meetingLocationData.lng);
-                            if (pDist < 200) { // Tolerância de 200m para o carona
-                                await firebase.database().ref(`meeting/attendance/${today}/${p.uid}`).set({ 
-                                    name: p.name, role: 'passenger', confirmedAt: ts, driverName: currentVendorName, method: 'via_driver' 
-                                });
-                                await firebase.database().ref(`meeting/participants/${p.uid}`).update({ phase: 'meeting', presenceConfirmed: true });
-                                successCount++;
-                            } else {
-                                fraudCount++;
-                                console.warn(`Fraude detectada ou GPS impreciso para ${p.name}. Distância: ${Math.round(pDist)}m`);
-                            }
-                        }
-                    }
-                }
-
-                showDriverMeetingInProgress();
-                if (fraudCount > 0) {
-                    showToast(`Presença confirmada (${successCount}). ${fraudCount} caronas não foram validados por distância GPS.`, 'warning');
-                } else {
-                    showToast('Presença confirmada para todos!', 'success');
-                }
-            } catch (e) { showToast('Erro: ' + e.message, 'error'); }
-        }
+        // Função confirmAllPresence removida conforme solicitação. O motorista agora confirma apenas sua própria presença.
 
         function showDriverMeetingInProgress() {
             const div = document.getElementById('driver-meeting-in-progress');
@@ -4139,24 +4143,43 @@
             window.open(url, '_blank');
         }
 
-        // ── CHAT ─────────────────────────────────────────────────────────────────
+        let lastSupportMsgCount = 0;
         function loadChat() {
             const user = firebase.auth().currentUser;
             if (!user) return;
             const container = document.getElementById('chat-messages');
             if (chatListener) firebase.database().ref('mensagens/' + user.uid).off('value', chatListener);
             chatListener = firebase.database().ref('mensagens/' + user.uid).on('value', snap => {
-                const msgs = snap.val();
-                container.innerHTML = '';
-                if (msgs) {
-                    Object.values(msgs).forEach(m => {
-                        const b = document.createElement('div');
-                        b.className = `chat-bubble ${m.sender}`;
-                        b.innerHTML = `<div>${m.text}</div><span class="chat-time">${new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
-                        container.appendChild(b);
-                    });
-                    container.scrollTop = container.scrollHeight;
+                const msgs = snap.val() || {};
+                const allMsgs = Object.values(msgs);
+                const total = allMsgs.length;
+
+                const screenChat = document.getElementById('screen-chat');
+                const isChatOpen = (activeScreen === 'chat');
+
+                // Notificação e Dot do Suporte
+                if (total > lastSupportMsgCount) {
+                    const last = allMsgs[total - 1];
+                    if (last.sender === 'admin' && !isChatOpen) {
+                        showGlobalNotification('Suporte', last.text, 'support');
+                        document.getElementById('badge-support')?.classList.add('active');
+                    }
                 }
+                if (isChatOpen) {
+                    document.getElementById('badge-support')?.classList.remove('active');
+                }
+
+                lastSupportMsgCount = total;
+
+                // Renderização
+                container.innerHTML = '';
+                allMsgs.forEach(m => {
+                    const b = document.createElement('div');
+                    b.className = `chat-bubble ${m.sender}`;
+                    b.innerHTML = `<div>${m.text}</div><span class="chat-time">${new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>`;
+                    container.appendChild(b);
+                });
+                container.scrollTop = container.scrollHeight;
             });
         }
 
@@ -4180,6 +4203,9 @@
 
         function openMeetingChat(partnerUid, partnerName) {
             meetingChatPartnerUid = partnerUid;
+            // Limpa bolinha ao abrir
+            document.getElementById(`dot-chat-${partnerUid}`)?.classList.remove('active');
+            if (partnerUid === currentDriverUid) document.getElementById('btn-passenger-chat-driver')?.classList.remove('active');
 
             // Gera chave de sala consistente (menor UID sempre primeiro) com a data do dia
             const today = new Date().toISOString().split('T')[0];
@@ -4261,7 +4287,7 @@
             lastMeetingMsgCount = 0; // Reseta contador
         }
 
-        let lastMeetingMsgCount = 0;
+        let roomCounts = {};
 
         function listenForMeetingChatMessages(partnerUid) {
             const today = new Date().toISOString().split('T')[0];
@@ -4271,20 +4297,21 @@
                 const msgs = snap.val();
                 if (!msgs) return;
 
-                const allMsgs = Object.values(msgs);
-                const total = allMsgs.length;
-
-                // Se chegou mensagem nova e o modal está fechado, mostra alerta
-                if (total > lastMeetingMsgCount) {
+                // Se chegou mensagem nova e o modal está fechado, mostra alerta e ativa bolinha
+                if (total > (roomCounts[roomKey] || 0)) {
                     const last = allMsgs[total - 1];
-
-                    // Só notifica se a mensagem NÃO é minha
                     if (last.senderUid !== currentVendorUid) {
-                        showMeetingChatAlert(partnerUid, last.senderName, last.text);
+                        const isModalOpen = (document.getElementById('meeting-chat-modal').style.display === 'flex' && meetingChatPartnerUid === partnerUid);
+                        if (!isModalOpen) {
+                            showGlobalNotification(last.senderName, last.text, 'meeting', { uid: partnerUid, name: last.senderName });
+                            // Ativa bolinha no item da lista ou no botão do carona
+                            document.getElementById(`dot-chat-${partnerUid}`)?.classList.add('active');
+                            if (partnerUid === currentDriverUid) document.getElementById('btn-passenger-chat-driver')?.classList.add('active');
+                        }
                     }
                 }
 
-                lastMeetingMsgCount = total;
+                roomCounts[roomKey] = total;
 
                 // Se o modal já estiver aberto, atualiza as mensagens em tempo real
                 if (meetingChatPartnerUid === partnerUid) {
@@ -4314,48 +4341,49 @@
             });
         }
 
-        function showMeetingChatAlert(partnerUid, senderName, text) {
+        function showGlobalNotification(senderName, text, type, meetingData = null) {
             // Remove alerta anterior se existir
-            const old = document.getElementById('meeting-chat-alert');
+            const old = document.getElementById('global-chat-alert');
             if (old) old.remove();
 
             const alert = document.createElement('div');
-            alert.id = 'meeting-chat-alert';
+            alert.id = 'global-chat-alert';
             alert.style.cssText = `
-    position: fixed; bottom: 30px; left: 16px; right: 16px;
-    background: var(--surface); border: 1px solid var(--gold-border);
-    border-radius: 16px; padding: 14px 16px; z-index: 4500;
-    display: flex; align-items: center; gap: 12px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
-    animation: slideUp 0.3s ease; cursor: pointer;
-  `;
+                position: fixed; bottom: 30px; left: 16px; right: 16px;
+                background: var(--surface); border: 1px solid var(--gold-border);
+                border-radius: 16px; padding: 14px 16px; z-index: 5000;
+                display: flex; align-items: center; gap: 12px;
+                box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+                animation: slideUp 0.3s ease; cursor: pointer;
+            `;
             alert.innerHTML = `
-    <div style="width:40px;height:40px;border-radius:12px;background:var(--gold-light);
-      border:1px solid var(--gold-border);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-      <i data-lucide="message-circle" style="color:var(--gold);width:20px;height:20px;"></i>
-    </div>
-    <div style="flex:1;min-width:0;">
-      <div style="font-weight:700;font-size:0.85rem;">${senderName}</div>
-      <div style="font-size:0.75rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${text}</div>
-    </div>
-    <button onclick="document.getElementById('meeting-chat-alert').remove()" 
-      style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;flex-shrink:0;">
-      <i data-lucide="x" style="width:16px;height:16px;"></i>
-    </button>
-  `;
+                <div style="width:40px;height:40px;border-radius:12px;background:var(--gold-light);
+                  border:1px solid var(--gold-border);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                  <i data-lucide="message-circle" style="color:var(--gold);width:20px;height:20px;"></i>
+                </div>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-weight:700;font-size:0.85rem;">${senderName}</div>
+                  <div style="font-size:0.75rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${text}</div>
+                </div>
+                <button onclick="document.getElementById('global-chat-alert').remove()" 
+                  style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;flex-shrink:0;">
+                  <i data-lucide="x" style="width:16px;height:16px;"></i>
+                </button>
+            `;
 
-            // Clicar no alerta abre o chat
             alert.addEventListener('click', (e) => {
                 if (e.target.closest('button')) return;
                 alert.remove();
-                openMeetingChat(partnerUid, senderName);
+                if (type === 'support') {
+                    showScreen('chat');
+                } else if (type === 'meeting' && meetingData) {
+                    openMeetingChat(meetingData.uid, meetingData.name);
+                }
             });
 
             document.body.appendChild(alert);
             lucide.createIcons();
-
-            // Some automaticamente após 6 segundos
-            setTimeout(() => { if (alert.parentNode) alert.remove(); }, 6000);
+            setTimeout(() => { if (alert.parentNode) alert.remove(); }, 3000);
         }
 
         // ── MAP INIT ─────────────────────────────────────────────────────────────
