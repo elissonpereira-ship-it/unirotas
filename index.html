@@ -2927,6 +2927,17 @@
 
         // ── ROLE SELECTION ───────────────────────────────────────────────────────
         async function selectRole(role) {
+            // ✅ Limpa qualquer estado anterior de reunião antes de trocar
+            if (currentVendorUid) {
+                try {
+                    await firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
+                    // Limpa pickups se era motorista
+                    await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
+                } catch (e) {
+                    console.error("Erro ao limpar estado anterior:", e);
+                }
+            }
+
             currentMeetingRole = role;
             showMeetingView('meeting-location-select');
             loadMeetingLocationsForSelection();
@@ -3012,16 +3023,20 @@
                 if (currentMeetingRole === 'passenger') {
                     showMeetingView('meeting-passenger-waiting');
                 } else if (currentMeetingRole === 'driver') {
-                    // RESET DRIVER UI
-                    document.getElementById('btn-driver-confirm-presence').classList.remove('hidden');
-                    document.getElementById('driver-meeting-in-progress').classList.add('hidden');
+                    // RESET DRIVER UI (DEFENSIVAMENTE)
+                    const btnDriverConfirm = document.getElementById('btn-driver-confirm-presence');
+                    const infoDriverMeeting = document.getElementById('driver-meeting-in-progress');
+                    if (btnDriverConfirm) btnDriverConfirm.classList.remove('hidden');
+                    if (infoDriverMeeting) infoDriverMeeting.classList.add('hidden');
                     
                     showMeetingView('meeting-driver-select');
                     loadAvailablePassengers();
                 } else if (currentMeetingRole === 'individual') {
-                    // RESET INDIVIDUAL UI
-                    document.getElementById('btn-individual-confirm').classList.remove('hidden');
-                    document.getElementById('individual-confirmed').classList.add('hidden');
+                    // RESET INDIVIDUAL UI (DEFENSIVAMENTE)
+                    const btnIndConfirm = document.getElementById('btn-individual-confirm');
+                    const infoIndConfirmed = document.getElementById('individual-confirmed');
+                    if (btnIndConfirm) btnIndConfirm.classList.remove('hidden');
+                    if (infoIndConfirmed) infoIndConfirmed.classList.add('hidden');
                     
                     showMeetingView('meeting-individual');
                 }
