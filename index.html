@@ -2027,6 +2027,9 @@
     <!-- SIDEBAR OVERLAY -->
     <div id="sidebar-overlay" onclick="closeSidebar()"></div>
 
+    <!-- Floating Notification Container -->
+    <div id="floating-notification-container" style="position:fixed; top:70px; left:16px; right:16px; z-index:9999; pointer-events:none; display:flex; flex-direction:column; gap:10px;"></div>
+
     <!-- SIDEBAR -->
     <div id="sidebar">
         <div class="sb-header">
@@ -2090,7 +2093,7 @@
     <!-- ══════════════════════════════════════ -->
     <div id="screen-login" class="screen" style="display:none">
         <div class="login-top">
-            <img src="assets/logo_empresa.png" alt="Logo" class="login-logo">
+            <img src="../assets/logo_empresa.png" alt="Logo" class="login-logo">
             <div class="login-brand"><span>Uni</span>Rotas</div>
             <div class="login-sub">Integridade Logística</div>
         </div>
@@ -2338,8 +2341,8 @@
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                         <h3 style="margin:0">STATUS DO EMBARQUE</h3>
                         <div id="passenger-driver-chat-wrap" style="display:none;">
-                            <button class="p-btn-small chat notif-badge" id="btn-passenger-chat-driver" onclick="openMeetingChatWithDriver()"
-                                style="padding:6px 12px; font-size:0.75rem;">
+                            <button class="p-btn-small chat notif-badge" id="btn-passenger-chat-driver"
+                                onclick="openMeetingChatWithDriver()" style="padding:6px 12px; font-size:0.75rem;">
                                 <i data-lucide="message-circle" style="width:14px;"></i> Chat
                             </button>
                         </div>
@@ -2718,7 +2721,7 @@
             document.getElementById('signup-fields').classList.toggle('hidden', !isSignupMode);
             document.getElementById('btn-login-action').textContent = isSignupMode ? 'ENVIAR CÓDIGO' : 'ENTRAR NO SISTEMA';
             document.getElementById('toggle-auth-text').textContent = isSignupMode ? 'Já tenho cadastro' : 'Solicitar novo cadastro';
-            
+
             if (isSignupMode) {
                 setTimeout(initAddressAutocomplete, 100);
             }
@@ -2903,6 +2906,10 @@
 
             showScreen('dashboard');
             loadEconomyStats(); // Carrega estatísticas de economia
+            
+            // Phase 10: Messages & Red Dots
+            initSupportMessageListener(uid); 
+            
             logAudit('Login');
         }
 
@@ -4318,6 +4325,15 @@
                 firebase.database().ref(`meeting/chats/${roomKey}`).off('value', meetingChatListener);
                 meetingChatListener = null;
             }
+            
+            // Remove red dot when opening/closing chat with this partner
+            if (meetingChatPartnerUid) {
+                document.getElementById(`dot-chat-${meetingChatPartnerUid}`)?.classList.remove('active');
+                if (meetingChatPartnerUid === currentDriverUid) {
+                    document.getElementById('btn-passenger-chat-driver')?.classList.remove('active');
+                }
+            }
+
             meetingChatPartnerUid = null;
             document.getElementById('meeting-chat-modal').style.display = 'none';
 
@@ -4381,49 +4397,68 @@
             });
         }
 
+        let supportListListener = null;
+        function initSupportMessageListener(uid) {
+            const badge = document.getElementById('badge-support');
+            if (supportListListener) firebase.database().ref(`mensagens/${uid}`).off('value', supportListListener);
+
+            let lastCount = -1;
+            supportListListener = firebase.database().ref(`mensagens/${uid}`).on('value', snap => {
+                const msgs = snap.val() || {};
+                const msgList = Object.values(msgs);
+                const currentCount = msgList.length;
+
+                if (lastCount !== -1 && currentCount > lastCount) {
+                    const lastMsg = msgList[currentCount - 1];
+                    if (lastMsg.sender === 'admin') {
+                        // Ativa bolinha se não estiver no chat
+                        if (currentScreen !== 'chat') {
+                            if (badge) badge.classList.add('active');
+                            showGlobalNotification('Suporte UniRotas', lastMsg.text, 'support');
+                        }
+                    }
+                }
+                lastCount = currentCount;
+            });
+        }
+
         function showGlobalNotification(senderName, text, type, meetingData = null) {
-            // Remove alerta anterior se existir
-            const old = document.getElementById('global-chat-alert');
-            if (old) old.remove();
+            const container = document.getElementById('floating-notification-container');
+            if (!container) return;
 
-            const alert = document.createElement('div');
-            alert.id = 'global-chat-alert';
-            alert.style.cssText = `
-                position: fixed; bottom: 30px; left: 16px; right: 16px;
+            const toast = document.createElement('div');
+            toast.style.cssText = `
                 background: var(--surface); border: 1px solid var(--gold-border);
-                border-radius: 16px; padding: 14px 16px; z-index: 5000;
-                display: flex; align-items: center; gap: 12px;
-                box-shadow: 0 8px 30px rgba(0,0,0,0.5);
-                animation: slideUp 0.3s ease; cursor: pointer;
+                border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; 
+                gap: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.4); pointer-events: auto;
+                animation: slideDown 0.3s ease; cursor: pointer; border-left: 4px solid var(--gold);
             `;
-            alert.innerHTML = `
-                <div style="width:40px;height:40px;border-radius:12px;background:var(--gold-light);
-                  border:1px solid var(--gold-border);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                  <i data-lucide="message-circle" style="color:var(--gold);width:20px;height:20px;"></i>
+            
+            toast.innerHTML = `
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:700; font-size:0.82rem; color:var(--gold); margin-bottom:2px;">${senderName}</div>
+                    <div style="font-size:0.78rem; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${text}</div>
                 </div>
-                <div style="flex:1;min-width:0;">
-                  <div style="font-weight:700;font-size:0.85rem;">${senderName}</div>
-                  <div style="font-size:0.75rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${text}</div>
-                </div>
-                <button onclick="document.getElementById('global-chat-alert').remove()" 
-                  style="background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;flex-shrink:0;">
-                  <i data-lucide="x" style="width:16px;height:16px;"></i>
-                </button>
+                <i data-lucide="chevron-right" style="width:16px; height:16px; opacity:0.5;"></i>
             `;
 
-            alert.addEventListener('click', (e) => {
-                if (e.target.closest('button')) return;
-                alert.remove();
+            toast.onclick = () => {
+                toast.remove();
                 if (type === 'support') {
                     showScreen('chat');
-                } else if (type === 'meeting' && meetingData) {
+                    document.getElementById('badge-support')?.classList.remove('active');
+                } else if (meetingData) {
                     openMeetingChat(meetingData.uid, meetingData.name);
                 }
-            });
+            };
 
-            document.body.appendChild(alert);
-            lucide.createIcons();
-            setTimeout(() => { if (alert.parentNode) alert.remove(); }, 3000);
+            container.appendChild(toast);
+            if (window.lucide) window.lucide.createIcons({ root: toast });
+
+            setTimeout(() => {
+                toast.style.animation = 'fadeOut 0.5s forwards';
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
         }
 
         // ── MAP INIT ─────────────────────────────────────────────────────────────
