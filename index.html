@@ -2049,7 +2049,7 @@
     <!-- ══════════════════════════════════════ -->
     <div id="screen-login" class="screen" style="display:none">
         <div class="login-top">
-            <img src="assets/logo_empresa.png" alt="Logo" class="login-logo">
+            <img src="../assets/logo_empresa.png" alt="Logo" class="login-logo">
             <div class="login-brand"><span>Uni</span>Rotas</div>
             <div class="login-sub">Integridade Logística</div>
         </div>
@@ -2286,7 +2286,7 @@
             <!-- TELA 1B: CARONA - Motorista selecionou -->
             <div id="meeting-passenger-selected" class="hidden">
                 <div class="status-v2-container">
-                    <div class="status-v2-icon success">
+                    <div class="status-v2-icon pulse success">
                         <i data-lucide="car"></i>
                     </div>
                     <div class="status-v2-title" id="passenger-driver-name">Motorista em trajeto</div>
@@ -2314,12 +2314,10 @@
                     <i data-lucide="check-circle"></i> Confirmar Presença (GPS)
                 </button>
 
-                <div id="passenger-reunion-status" class="hidden">
-                    <div class="status-v2-container">
-                        <div class="status-v2-icon info"><i data-lucide="users"></i></div>
-                        <div class="status-v2-title">Em Reunião</div>
-                        <div class="status-v2-subtitle">Aguardando término para retorno.</div>
-                    </div>
+                <div id="passenger-reunion-status" class="hidden" style="text-align:center;padding:20px 0;">
+                    <div class="big-status-icon success"><i data-lucide="users"></i></div>
+                    <div class="status-label" style="color:var(--success)">Em Reunião</div>
+                    <div style="font-size:0.78rem;color:var(--muted);margin-top:6px;">Aguardando término para iniciar o retorno.</div>
                 </div>
 
                 <button class="action-btn danger" style="margin-top:10px" onclick="cancelPassengerWaiting()">
@@ -2410,15 +2408,13 @@
                     <i data-lucide="map"></i> Ver Rota no Google Maps
                 </button>
 
-                <div id="driver-meeting-in-progress" class="hidden">
-                    <div class="status-v2-container">
-                        <div class="status-v2-icon success"><i data-lucide="users"></i></div>
-                        <div class="status-v2-title">Em Reunião</div>
-                        <div class="status-v2-subtitle">Aguarde o encerramento para iniciar o retorno.</div>
-                        <button class="action-btn danger" style="margin-top:20px;" onclick="endMeeting()">
-                            <i data-lucide="flag"></i> Encerrar Reunião
-                        </button>
-                    </div>
+                <div id="driver-meeting-in-progress" class="hidden" style="text-align:center;padding:20px 0;">
+                    <div class="big-status-icon success"><i data-lucide="users"></i></div>
+                    <div class="status-label" style="color:var(--success); margin-bottom: 20px;">Em Reunião (Fase Atual)</div>
+                    <button class="action-btn danger" style="margin-top:20px;" onclick="endMeeting()">
+                        <i data-lucide="flag"></i> Encerrar Reunião
+                    </button>
+                    <div style="font-size:0.75rem;color:var(--muted);margin-top:10px;">Clique acima para encerrar e iniciar o retorno.</div>
                 </div>
             </div>
 
@@ -2617,7 +2613,15 @@
                 if (el) el.classList.add('hidden');
             });
 
-            // 5. Remove do banco se não estiver em "finished"
+            // 5. Limpa Listas Dinâmicas (Previne rastros visuais)
+            const pickupList = document.getElementById('driver-pickup-list');
+            if (pickupList) pickupList.innerHTML = '';
+            const dropoffList = document.getElementById('driver-dropoff-list');
+            if (dropoffList) dropoffList.innerHTML = '';
+            const paxList = document.getElementById('available-passengers-list');
+            if (paxList) paxList.innerHTML = '<div class="empty-state"><i data-lucide="users"></i><p>Carregando vendedores...</p></div>';
+
+            // 6. Remove do banco se não estiver em "finished"
             if (currentVendorUid) {
                 const snap = await firebase.database().ref(`meeting/participants/${currentVendorUid}`).once('value');
                 const p = snap.val();
@@ -3523,22 +3527,7 @@
             }
         }
 
-        async function passengerConfirmPresence() {
-            if (!currentVendorUid) return;
-            if (!meetingLocationData) { showToast('Local da reunião não definido.', 'error'); return; }
-            if (lastLat === 0) { showToast('GPS inativo. Inicie o rastreamento.', 'error'); return; }
-            const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
-            if (dist > 500) { showToast(`Muito longe do local (${Math.round(dist)}m). Aproxime-se.`, 'error'); return; }
-            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ presenceConfirmed: true, presenceTime: Date.now() });
-            // Log presence in meeting attendance
-            const meetDate = new Date().toISOString().split('T')[0];
-            await firebase.database().ref(`meeting/attendance/${meetDate}/${currentVendorUid}`).set({
-                name: currentVendorName, role: 'passenger', confirmedAt: Date.now()
-            });
-            document.getElementById('btn-passenger-confirm-presence').classList.add('hidden');
-            document.getElementById('passenger-reunion-status').classList.remove('hidden');
-            showToast('Presença confirmada!', 'success');
-        }
+
 
         // ── PREMIUM TOOLS ────────────────────────────────────────────────────────
         function calcDistHaversine(lat1, lon1, lat2, lon2) {
@@ -3868,7 +3857,7 @@
             if (currentPhase === 'meeting' || currentPhase === 'return') return;
 
             const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
-            const IS_NEAR = dist < 500; 
+            const IS_NEAR = dist < 150; 
 
             // 1. Botão Individual
             const btnInd = document.getElementById('btn-individual-confirm');
@@ -3916,24 +3905,33 @@
         }
 
         async function individualConfirmPresence() {
-            if (!meetingLocationData) return;
-            showToast('Confirmando presença...', 'info');
+            if (!meetingLocationData) { showToast('Local da reunião não definido.', 'error'); return; }
+            if (lastLat === 0) { showToast('GPS inativo. Inicie o rastreamento.', 'error'); return; }
+            const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
+            if (dist > 150) { showToast(`Você está muito longe (${Math.round(dist)}m). Aproxime-se do local.`, 'error'); return; }
             try {
-                const today = new Date().toISOString().split('T')[0];
-                await firebase.database().ref(`meeting/attendance/${today}/${currentVendorUid}`).set({
-                    name: currentVendorName, role: 'individual', locationId: meetingLocationData.id || 'current',
-                    locationName: meetingLocationData.name, timestamp: Date.now()
+                const meetDate = new Date().toISOString().split('T')[0];
+                await firebase.database().ref(`meeting/attendance/${meetDate}/${currentVendorUid}`).set({
+                    name: currentVendorName, role: 'individual', confirmedAt: Date.now()
                 });
-                await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ presenceConfirmed: true, status: 'confirmed' });
+                await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ presenceConfirmed: true });
                 document.getElementById('btn-individual-confirm').classList.add('hidden');
                 document.getElementById('individual-confirmed').classList.remove('hidden');
                 showToast('Presença confirmada!', 'success');
             } catch (e) { showToast('Erro: ' + e.message, 'error'); }
         }
 
+        function cancelIndividual() {
+            firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
+            currentMeetingRole = null;
+            showMeetingView('meeting-role-select');
+        }
+
         async function passengerConfirmPresence() {
-            if (!meetingLocationData) return;
-            showToast('Confirmando presença...', 'info');
+            if (!meetingLocationData) { showToast('Local da reunião não definido.', 'error'); return; }
+            if (lastLat === 0) { showToast('GPS inativo. Inicie o rastreamento.', 'error'); return; }
+            const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
+            if (dist > 150) { showToast(`Muito longe do local (${Math.round(dist)}m). Aproxime-se.`, 'error'); return; }
             try {
                 const today = new Date().toISOString().split('T')[0];
                 await firebase.database().ref(`meeting/attendance/${today}/${currentVendorUid}`).set({
@@ -3948,15 +3946,20 @@
         }
 
         async function driverConfirmPresence() {
-            if (!meetingLocationData) return;
-            const today = new Date().toISOString().split('T')[0];
-            await firebase.database().ref(`meeting/attendance/${today}/${currentVendorUid}`).set({
-                name: currentVendorName, role: 'driver', confirmedAt: Date.now()
-            });
-            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'meeting', presenceConfirmed: true });
-            document.getElementById('btn-driver-confirm-presence').classList.add('hidden');
-            showDriverMeetingInProgress();
-            showToast('Presença confirmada!', 'success');
+            if (!meetingLocationData) { showToast('Local da reunião não definido.', 'error'); return; }
+            if (lastLat === 0) { showToast('GPS inativo. Inicie o rastreamento.', 'error'); return; }
+            const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
+            if (dist > 150) { showToast(`Muito longe do local (${Math.round(dist)}m). Aproxime-se.`, 'error'); return; }
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                await firebase.database().ref(`meeting/attendance/${today}/${currentVendorUid}`).set({
+                    name: currentVendorName, role: 'driver', confirmedAt: Date.now()
+                });
+                await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'meeting', presenceConfirmed: true });
+                document.getElementById('btn-driver-confirm-presence').classList.add('hidden');
+                showDriverMeetingInProgress();
+                showToast('Presença (motorista) confirmada!', 'success');
+            } catch (e) { showToast('Erro: ' + e.message, 'error'); }
         }
 
         async function confirmAllPresence() {
@@ -3987,7 +3990,7 @@
                         
                         if (pData && pData.lat && pData.lng) {
                             const pDist = calcDistance(pData.lat, pData.lng, meetingLocationData.lat, meetingLocationData.lng);
-                            if (pDist < 600) { // Tolerância de 600m para o carona
+                            if (pDist < 200) { // Tolerância de 200m para o carona
                                 await firebase.database().ref(`meeting/attendance/${today}/${p.uid}`).set({ 
                                     name: p.name, role: 'passenger', confirmedAt: ts, driverName: currentVendorName, method: 'via_driver' 
                                 });
@@ -4118,36 +4121,7 @@
             showMeetingView('meeting-role-select');
         }
 
-        // ── INDIVIDUAL FLOW ──────────────────────────────────────────────────────
-        async function individualConfirmPresence() {
-            if (!meetingLocationData) { showToast('Local da reunião não definido.', 'error'); return; }
-            if (lastLat === 0) { showToast('GPS inativo. Inicie o rastreamento.', 'error'); return; }
 
-            const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
-            if (dist > 500) {
-                showToast(`Você está muito longe (${Math.round(dist)}m). Aproxime-se do local.`, 'error');
-                return;
-            }
-
-            const meetDate = new Date().toISOString().split('T')[0];
-            await firebase.database().ref(`meeting/attendance/${meetDate}/${currentVendorUid}`).set({
-                name: currentVendorName,
-                role: 'individual',
-                confirmedAt: Date.now()
-            });
-            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({
-                presenceConfirmed: true
-            });
-            document.getElementById('btn-individual-confirm').classList.add('hidden');
-            document.getElementById('individual-confirmed').classList.remove('hidden');
-            showToast('Presença confirmada!', 'success');
-        }
-
-        function cancelIndividual() {
-            firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
-            currentMeetingRole = null;
-            showMeetingView('meeting-role-select');
-        }
 
         // ── MAP NAVIGATION ───────────────────────────────────────────────────────
         function openDriverMapRoute(isReturn) {
