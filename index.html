@@ -2876,6 +2876,14 @@
             if (data.locationName) {
                 const badge = document.getElementById('meeting-location-name');
                 if (badge) badge.textContent = data.locationName;
+                
+                // RESTORE GLOBAL DATA FOR DISTANCE CHECKS
+                meetingLocationData = {
+                    name: data.locationName,
+                    address: data.locationAddress,
+                    lat: data.lat,
+                    lng: data.lng
+                };
             }
 
             if (data.role === 'passenger') {
@@ -2985,11 +2993,14 @@
                 locationId: locId,
                 locationName: locData.name,
                 locationAddress: locData.address,
+                lat: locData.lat,
+                lng: locData.lng,
                 phase: 'idle',
                 presenceConfirmed: false
             };
 
             try {
+                meetingLocationData = locData; // SET GLOBAL IMMEDIATELY
                 await firebase.database().ref(`meeting/participants/${currentVendorUid}`).set(participantData);
                 showToast(`Local confirmado: ${locData.name}`, 'success');
 
