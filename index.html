@@ -1754,6 +1754,48 @@
             font-size: 0.72rem;
             color: var(--text);
         }
+
+        /* SEAT INDICATOR */
+        .seat-row { display: flex; gap: 5px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+        .seat { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; border: 1px solid var(--border); transition: all 0.2s; }
+        .seat.driver-seat { background: linear-gradient(135deg, #a67c00, #d4af37); border: none; }
+        .seat.taken { background: var(--gold-light); border-color: var(--gold-border); }
+        .seat.empty { background: var(--glass); opacity: 0.5; }
+
+        /* BOTÃO SUGESTÃO AUTOMÁTICA */
+        .auto-suggest-btn {
+          width: 100%; padding: 13px; border-radius: 14px;
+          background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.3);
+          color: var(--info); font-family: inherit; font-size: 0.88rem; font-weight: 700;
+          cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+          margin-bottom: 16px; transition: all 0.2s;
+        }
+        .auto-suggest-btn:hover { background: rgba(59,130,246,0.2); transform: translateY(-1px); }
+
+        /* DISTANCE TAG */
+        .dist-tag {
+          font-size: 0.68rem; padding: 2px 6px; border-radius: 4px;
+          background: rgba(16,185,129,0.1); color: var(--success);
+          font-weight: 600; margin-left: 8px;
+        }
+
+        /* ECONOMY PANEL */
+        .eco-panel {
+          background: linear-gradient(160deg, var(--surface2), var(--surface));
+          border: 1px solid var(--gold-border); border-radius: 20px;
+          padding: 20px; margin-bottom: 24px; position: relative; overflow: hidden;
+        }
+        .eco-panel::before {
+          content: ''; position: absolute; top: -50%; right: -20%; width: 150px; height: 150px;
+          background: var(--gold); filter: blur(80px); opacity: 0.1; pointer-events: none;
+        }
+        .eco-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .eco-title { font-size: 0.85rem; font-weight: 700; color: var(--gold); letter-spacing: 1px; text-transform: uppercase; }
+        .eco-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .eco-card { background: var(--glass); padding: 12px; border-radius: 14px; border: 1px solid var(--border); }
+        .eco-label { font-size: 0.7rem; color: var(--muted); margin-bottom: 4px; display: block; }
+        .eco-val { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+        .eco-unit { font-size: 0.75rem; color: var(--muted); margin-left: 3px; }
     </style>
 </head>
 
@@ -1947,6 +1989,24 @@
             <button id="btn-tracking" class="btn-primary" onclick="toggleTracking()" style="margin-bottom:24px">
                 INICIAR RASTREAMENTO
             </button>
+            <!-- PAINEL DE ECONOMIA PREMIUM -->
+            <div class="eco-panel" id="eco-panel">
+              <div class="eco-header">
+                <span class="eco-title">Impacto de Carona</span>
+                <i data-lucide="leaf" style="color:var(--success);width:18px;height:18px;"></i>
+              </div>
+              <div class="eco-grid">
+                <div class="eco-card">
+                  <span class="eco-label">Caronas Dadas</span>
+                  <div class="eco-val" id="eco-rides">0</div>
+                </div>
+                <div class="eco-card">
+                  <span class="eco-label">KM Economizados</span>
+                  <div class="eco-val" id="eco-km">0.0<span class="eco-unit">km</span></div>
+                </div>
+              </div>
+            </div>
+
             <!-- BADGE REUNIÃO ATIVA -->
             <div id="meeting-alert-card" class="hidden" style="
               background: var(--gold-light); border: 1px solid var(--gold-border);
@@ -2026,7 +2086,8 @@
             <!-- TELA 0B: Seleção de LOCAL da reunião -->
             <div id="meeting-location-select" class="hidden">
                 <div class="section-title">SUGESTÕES DE LOCAL</div>
-                <div id="meeting-locations-suggestion-list" style="margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px;">
+                <div id="meeting-locations-suggestion-list"
+                    style="margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px;">
                     <div class="empty-state">
                         <i data-lucide="map-pin"></i>
                         <p>Carregando locais disponíveis...</p>
@@ -2118,6 +2179,24 @@
                     </div>
                 </div>
                 <div class="meeting-card">
+                    <!-- BOTÃO SUGESTÃO AUTOMÁTICA -->
+                    <button class="auto-suggest-btn" id="btn-auto-suggest" onclick="autoSuggestPassengers()">
+                      <i data-lucide="zap"></i>
+                      Sugestão Automática (Proximidade)
+                    </button>
+
+                    <!-- INDICADOR DE ASSENTOS -->
+                    <div style="margin-bottom: 20px;">
+                      <div style="font-size:0.75rem; color:var(--muted); font-weight:600; text-transform:uppercase;">Capacidade do Veículo</div>
+                      <div class="seat-row" id="seat-indicator">
+                        <div class="seat driver-seat" title="Motorista"><i data-lucide="user" style="width:14px;"></i></div>
+                        <div class="seat empty" title="Vaga 1"></div>
+                        <div class="seat empty" title="Vaga 2"></div>
+                        <div class="seat empty" title="Vaga 3"></div>
+                        <div class="seat empty" title="Vaga 4"></div>
+                      </div>
+                    </div>
+
                     <h3>VENDEDORES DISPONÍVEIS (CARONA)</h3>
                     <div id="available-passengers-list">
                         <div class="empty-state"><i data-lucide="users"></i>
@@ -2490,6 +2569,7 @@
             }
 
             showScreen('dashboard');
+            loadEconomyStats(); // Carrega estatísticas de economia
             logAudit('Login');
         }
 
@@ -2871,12 +2951,12 @@
 
         function restoreMeetingState(data) {
             currentMeetingRole = data.role;
-            
+
             // Atualiza badge de local se existir
             if (data.locationName) {
                 const badge = document.getElementById('meeting-location-name');
                 if (badge) badge.textContent = data.locationName;
-                
+
                 // RESTORE GLOBAL DATA FOR DISTANCE CHECKS
                 meetingLocationData = {
                     name: data.locationName,
@@ -2932,6 +3012,7 @@
                 try {
                     await firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
                     // Limpa pickups se era motorista
+                    await firebase.database().ref(`meeting/notifications/`).remove(); // Notificação pendente?
                     await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
                 } catch (e) {
                     console.error("Erro ao limpar estado anterior:", e);
@@ -2939,6 +3020,8 @@
             }
 
             currentMeetingRole = role;
+            selectedPassengers = []; // Limpa seleção anterior
+            updateSeatIndicator();   // Reseta visual dos assentos
             showMeetingView('meeting-location-select');
             loadMeetingLocationsForSelection();
         }
@@ -3028,8 +3111,10 @@
                     const infoDriverMeeting = document.getElementById('driver-meeting-in-progress');
                     if (btnDriverConfirm) btnDriverConfirm.classList.remove('hidden');
                     if (infoDriverMeeting) infoDriverMeeting.classList.add('hidden');
-                    
+
                     showMeetingView('meeting-driver-select');
+                    selectedPassengers = []; // Garante lista limpa ao entrar
+                    updateSeatIndicator();
                     loadAvailablePassengers();
                 } else if (currentMeetingRole === 'individual') {
                     // RESET INDIVIDUAL UI (DEFENSIVAMENTE)
@@ -3037,7 +3122,7 @@
                     const infoIndConfirmed = document.getElementById('individual-confirmed');
                     if (btnIndConfirm) btnIndConfirm.classList.remove('hidden');
                     if (infoIndConfirmed) infoIndConfirmed.classList.add('hidden');
-                    
+
                     showMeetingView('meeting-individual');
                 }
             } catch (e) {
@@ -3233,6 +3318,82 @@
             showToast('Presença confirmada!', 'success');
         }
 
+        // ── PREMIUM TOOLS ────────────────────────────────────────────────────────
+        function calcDistHaversine(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))) * 1000;
+        }
+
+        async function autoSuggestPassengers() {
+            if (lastLat === 0) { showToast('GPS inativo. Inicie o rastreamento.', 'error'); return; }
+            const btn = document.getElementById('btn-auto-suggest');
+            const origText = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="refresh-cw" class="spin"></i> Calculando...';
+            lucide.createIcons();
+
+            try {
+                const snap = await firebase.database().ref('meeting/participants').once('value');
+                const participants = snap.val() || {};
+                const mySnap = await firebase.database().ref(`meeting/participants/${currentVendorUid}`).once('value');
+                const myLocId = mySnap.val()?.locationId;
+
+                let waiting = Object.values(participants).filter(p =>
+                    p.role === 'passenger' && p.embarkStatus === 'waiting' &&
+                    p.locationId === myLocId && p.uid !== currentVendorUid && p.lat
+                );
+
+                if (waiting.length === 0) { showToast('Nenhum carona com GPS ativo disponível.', 'info'); return; }
+
+                waiting.forEach(p => { p.distance = calcDistHaversine(lastLat, lastLon, p.lat, p.lng); });
+                waiting.sort((a, b) => a.distance - b.distance);
+
+                const top4 = waiting.slice(0, 4);
+                selectedPassengers = top4;
+                loadAvailablePassengers(); // Re-renderiza com sugestões
+                updateSeatIndicator();
+                showToast(`Sugeridos os ${top4.length} mais próximos.`, 'success');
+            } catch (e) { showToast('Erro na sugestão: ' + e.message, 'error'); }
+            finally { btn.innerHTML = origText; lucide.createIcons(); }
+        }
+
+        function updateSeatIndicator() {
+            const seats = document.querySelectorAll('#seat-indicator .seat:not(.driver-seat)');
+            seats.forEach((seat, i) => {
+                if (i < selectedPassengers.length) {
+                    seat.classList.add('taken'); seat.classList.remove('empty');
+                    seat.innerHTML = '<i data-lucide="user-check" style="width:14px;color:var(--gold)"></i>';
+                } else {
+                    seat.classList.remove('taken'); seat.classList.add('empty');
+                    seat.innerHTML = '';
+                }
+            });
+            lucide.createIcons();
+        }
+
+        async function loadEconomyStats() {
+            const ridesEl = document.getElementById('eco-rides');
+            const kmEl = document.getElementById('eco-km');
+            if (!ridesEl || !kmEl) return;
+
+            try {
+                const snap = await firebase.database().ref('meeting/history').once('value');
+                const history = snap.val() || {};
+                let totalRides = 0;
+
+                Object.values(history).forEach(day => {
+                    if (day[currentVendorUid]) {
+                        totalRides += Object.keys(day[currentVendorUid].passengers || {}).length;
+                    }
+                });
+
+                ridesEl.textContent = totalRides;
+                kmEl.innerHTML = `${(totalRides * 8.5).toFixed(1)}<span class="eco-unit">km</span>`;
+            } catch (e) { console.error('Erro ao carregar economia:', e); }
+        }
+
         // ── DRIVER FLOW ──────────────────────────────────────────────────────────
         let availablePassengersListener = null;
 
@@ -3273,12 +3434,18 @@
 
                 waiting.forEach(p => {
                     const isSelected = selectedPassengers.some(s => s.uid === p.uid);
+                    let distLabel = '';
+                    if (p.lat && lastLat) {
+                      const d = calcDistHaversine(lastLat, lastLon, p.lat, p.lng);
+                      distLabel = `<span class="dist-tag">${Math.round(d)}m</span>`;
+                    }
+
                     const div = document.createElement('div');
                     div.className = 'driver-item' + (isSelected ? ' selected' : '');
                     div.id = `passenger-select-${p.uid}`;
                     div.innerHTML = `
         <div>
-          <div class="d-name">${p.name}</div>
+          <div class="d-name">${p.name} ${distLabel}</div>
           <div class="d-sub">Aguardando carona</div>
         </div>
         <i data-lucide="${isSelected ? 'check-circle' : 'circle'}"
@@ -3309,6 +3476,7 @@
             }
             document.getElementById('selected-count').textContent = selectedPassengers.length;
             document.getElementById('btn-start-driver-route').disabled = selectedPassengers.length === 0;
+            updateSeatIndicator(); // Atualiza painel visual
             lucide.createIcons();
         }
 
@@ -3460,11 +3628,11 @@
         async function driverConfirmPresence() {
             if (!meetingLocationData) { showToast('Local da reunião não definido.', 'error'); return; }
             if (lastLat === 0) { showToast('GPS inativo. Inicie o rastreamento.', 'error'); return; }
-            
+
             const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
-            if (dist > 500) { 
-                showToast(`Você está muito longe (${Math.round(dist)}m). Aproxime-se do local.`, 'error'); 
-                return; 
+            if (dist > 500) {
+                showToast(`Você está muito longe (${Math.round(dist)}m). Aproxime-se do local.`, 'error');
+                return;
             }
 
             const meetDate = new Date().toISOString().split('T')[0];
@@ -3577,9 +3745,9 @@
             if (lastLat === 0) { showToast('GPS inativo. Inicie o rastreamento.', 'error'); return; }
 
             const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
-            if (dist > 500) { 
-                showToast(`Você está muito longe (${Math.round(dist)}m). Aproxime-se do local.`, 'error'); 
-                return; 
+            if (dist > 500) {
+                showToast(`Você está muito longe (${Math.round(dist)}m). Aproxime-se do local.`, 'error');
+                return;
             }
 
             const meetDate = new Date().toISOString().split('T')[0];
