@@ -49,7 +49,7 @@
             color: var(--text);
         }
 
-        /* ── SIDEBAR ─────────────────────────────── */
+        /* -- SIDEBAR --------------------------- */
         #sidebar {
             position: fixed;
             left: -290px;
@@ -182,7 +182,7 @@
             background: rgba(239, 68, 68, 0.15);
         }
 
-        /* ── TOP HEADER ──────────────────────────── */
+        /* -- TOP HEADER --------------------------- */
         .app-header {
             position: fixed;
             top: 0;
@@ -220,7 +220,7 @@
             color: var(--gold);
         }
 
-        /* ── SCREENS ─────────────────────────────── */
+        /* -- SCREENS ------------------------------ */
         .screen {
             display: none;
             flex: 1;
@@ -242,7 +242,7 @@
             padding-bottom: 30px;
         }
 
-        /* ── LOGIN SCREEN ────────────────────────── */
+        /* -- LOGIN SCREEN ------------------------- */
         #screen-login {
             display: flex;
             flex-direction: column;
@@ -251,6 +251,7 @@
             padding: 24px;
             height: 100%;
             background: radial-gradient(ellipse at 50% 0%, #1a2a4a 0%, var(--bg) 70%);
+            padding-top: 0 !important;
         }
 
         .login-top {
@@ -258,7 +259,8 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 0 0 40px 0;
+            padding: 0;
+            margin-bottom: 30px;
             width: 100%;
         }
 
@@ -1831,7 +1833,7 @@
         </div>
     </div>
 
-    <!-- ══════════════════════════════════════ -->
+    <!-- ====================================== -->
     <!--              LOGIN SCREEN             -->
     <!-- ══════════════════════════════════════ -->
     <div id="screen-login" class="screen" style="display:none">
@@ -2742,14 +2744,14 @@
                 // ─── NOTIFICAÇÃO 3: Retorno ───
                 else if (notif.type === 'return_started') {
                     showNotification('info', 'home', 'Reunião encerrada!',
-                        'O motorista iniciou o retorno. Prepare-se para desembarcar.',
+                        'O motorista iniciou o retorno. Prepare-se para chegar em casa.',
                         async () => {
                             await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
                             showMeetingView('meeting-passenger-selected');
                             document.getElementById('passenger-embark-status').innerHTML = `
             <div style="color:var(--info);font-weight:700">🏠 Retorno iniciado</div>
             <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">
-              Aguarde o motorista te deixar em casa.
+              Prepare-se para ir para casa. Aguarde o motorista.
             </div>
           `;
                             document.getElementById('btn-passenger-confirm-presence').classList.remove('hidden');
@@ -2758,7 +2760,33 @@
                     );
                 }
 
-                // ─── NOTIFICAÇÃO 4: Carona cancelou (motorista recebe) ───
+                // ─── NOTIFICAÇÃO 4: Desembarque (carona confirma chegada) ───
+                else if (notif.type === 'dropoff_request') {
+                    showNotification('success', 'home', 'Chegou ao destino?',
+                        `O motorista <strong>${notif.driverName}</strong> informou que você chegou. Você confirma o desembarque?`,
+                        // CONFIRMOU CHEGADA
+                        async () => {
+                            await firebase.database().ref(`meeting/participants/${uid}`).update({
+                                embarkStatus: 'finished',
+                                status: 'finished'
+                            });
+                            // Notifica o motorista da confirmação
+                            await firebase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({
+                                dropoffStatus: 'confirmed'
+                            });
+                            await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
+                            showToast('Desembarque confirmado! Até logo.', 'success');
+                            showMeetingView('meeting-role-select');
+                        },
+                        // NÃO CHEGOU
+                        async () => {
+                            await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
+                            showToast('Aviso enviado: você ainda não desembarcou.', 'error');
+                        }
+                    );
+                }
+
+                // ─── NOTIFICAÇÃO 5: Carona cancelou (motorista recebe) ───
                 else if (notif.type === 'passengerCancelled') {
                     showToast(`⚠️ ${notif.passengerName} cancelou a participação.`, 'error');
                     // Remove da seleção local se ainda estiver
@@ -2956,7 +2984,9 @@
                 joinedAt: Date.now(),
                 locationId: locId,
                 locationName: locData.name,
-                locationAddress: locData.address
+                locationAddress: locData.address,
+                phase: 'idle',
+                presenceConfirmed: false
             };
 
             try {
@@ -3389,6 +3419,15 @@
         }
 
         async function driverConfirmPresence() {
+            if (!meetingLocationData) { showToast('Local da reunião não definido.', 'error'); return; }
+            if (lastLat === 0) { showToast('GPS inativo. Inicie o rastreamento.', 'error'); return; }
+            
+            const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
+            if (dist > 500) { 
+                showToast(`Você está muito longe (${Math.round(dist)}m). Aproxime-se do local.`, 'error'); 
+                return; 
+            }
+
             const meetDate = new Date().toISOString().split('T')[0];
             await firebase.database().ref(`meeting/attendance/${meetDate}/${currentVendorUid}`).set({
                 name: currentVendorName,
@@ -3495,6 +3534,15 @@
 
         // ── INDIVIDUAL FLOW ──────────────────────────────────────────────────────
         async function individualConfirmPresence() {
+            if (!meetingLocationData) { showToast('Local da reunião não definido.', 'error'); return; }
+            if (lastLat === 0) { showToast('GPS inativo. Inicie o rastreamento.', 'error'); return; }
+
+            const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
+            if (dist > 500) { 
+                showToast(`Você está muito longe (${Math.round(dist)}m). Aproxime-se do local.`, 'error'); 
+                return; 
+            }
+
             const meetDate = new Date().toISOString().split('T')[0];
             await firebase.database().ref(`meeting/attendance/${meetDate}/${currentVendorUid}`).set({
                 name: currentVendorName,
