@@ -242,12 +242,13 @@
             padding-bottom: 30px;
         }
 
-        /* ── LOGIN SCREEN ────────────────────────── */
+        /* Protege a tela de login do padding do bottom-nav */
         #screen-login {
             display: flex;
             flex-direction: column;
             padding: 0;
-            height: 100%;
+            overflow: hidden !important;
+            height: 100dvh !important; /* dvh = dynamic viewport height */
             background: radial-gradient(ellipse at 50% 0%, #1a2a4a 0%, var(--bg) 70%);
         }
 
@@ -257,23 +258,25 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 40px 24px 20px;
+            padding: 40px 24px 10px;
+            min-height: 0;
         }
 
         .login-logo {
-            width: 100px;
+            width: 110px;
             height: auto;
-            max-width: 120px;
             display: block;
             margin: 0 auto 20px;
-            image-rendering: -webkit-optimize-contrast; /* melhora nitidez no iOS */
-            image-rendering: crisp-edges;
+            object-fit: contain;
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
         }
 
         .login-brand {
             font-size: 2.2rem;
             font-weight: 800;
             letter-spacing: -0.5px;
+            text-align: center;
         }
 
         .login-brand span {
@@ -286,13 +289,21 @@
             letter-spacing: 2.5px;
             text-transform: uppercase;
             margin-top: 4px;
+            text-align: center;
         }
 
         .login-card {
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: 24px 24px 0 0;
-            padding: 30px 24px 50px;
+            padding: 30px 24px max(30px, env(safe-area-inset-bottom));
+            flex-shrink: 0;
+        }
+
+        /* Remove bottom-nav na tela de login */
+        #screen-login ~ .bottom-nav,
+        body:has(#screen-login:not([style*="none"])) .bottom-nav {
+            display: none !important;
         }
 
         .login-card h2 {
@@ -1835,7 +1846,7 @@
     <!-- ══════════════════════════════════════ -->
     <div id="screen-login" class="screen" style="display:none">
         <div class="login-top">
-            <img src="../assets/logo_empresa.png" alt="Logo" class="login-logo">
+            <img src="assets/logo_empresa.png" alt="Logo" class="login-logo">
             <div class="login-brand"><span>Uni</span>Rotas</div>
             <div class="login-sub">Integridade Logística</div>
         </div>
@@ -3179,52 +3190,68 @@
 
         // ── DRIVER FLOW ──────────────────────────────────────────────────────────
         let availablePassengersListener = null;
-
-        function loadAvailablePassengers() {
+        async function loadAvailablePassengers() {
             const list = document.getElementById('available-passengers-list');
             list.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
 
+            // 1. Pega o locationId do motorista atual
+            const mySnap = await firebase.database().ref(`meeting/participants/${currentVendorUid}`).once('value');
+            const myData = mySnap.val();
+            const myLocationId = myData?.locationId;
+
+            if (!myLocationId) {
+                list.innerHTML = '<div class="empty-state"><i data-lucide="map-pin-off"></i><p>Local não definido. Volte e escolha um local.</p></div>';
+                lucide.createIcons();
+                return;
+            }
+
+            // 2. Listener em tempo real com filtro de local
             const pRef = firebase.database().ref('meeting/participants');
             meetingListeners.push(pRef);
             availablePassengersListener = pRef.on('value', snap => {
                 const all = snap.val();
-                const waiting = all
-                    ? Object.values(all).filter(p =>
-                        p.role === 'passenger' &&
-                        p.embarkStatus === 'waiting' &&
-                        p.uid !== currentVendorUid
-                    )
-                    : [];
+
+                // ✅ Filtra apenas caronas do MESMO local
+                const waiting = all ? Object.values(all).filter(p =>
+                    p.role === 'passenger' &&
+                    p.embarkStatus === 'waiting' &&
+                    p.uid !== currentVendorUid &&
+                    p.locationId === myLocationId   // ← FILTRO ESSENCIAL
+                ) : [];
 
                 list.innerHTML = '';
 
                 if (waiting.length === 0) {
-                    list.innerHTML = `<div class="empty-state">
-        <i data-lucide="users"></i>
-        <p>Nenhum vendedor aguardando carona no momento.</p>
-      </div>`;
+                    list.innerHTML = `
+        <div class="empty-state">
+          <i data-lucide="users"></i>
+          <p>Nenhum vendedor aguardando carona<br>para este local de reunião.</p>
+        </div>`;
                     lucide.createIcons();
                     return;
                 }
 
+                const prevSelected = selectedPassengers.map(p => p.uid);
                 waiting.forEach(p => {
-                    const isSelected = selectedPassengers.some(s => s.uid === p.uid);
+                    const isSelected = prevSelected.includes(p.uid);
                     const div = document.createElement('div');
-                    div.className = 'driver-item' + (isSelected ? ' selected' : '');
+                    div.className = `driver-item${isSelected ? ' selected' : ''}`;
                     div.id = `passenger-select-${p.uid}`;
                     div.innerHTML = `
         <div>
           <div class="d-name">${p.name}</div>
-          <div class="d-sub">Aguardando carona</div>
+          <div class="d-sub">
+            <i data-lucide="map-pin" style="display:inline;width:11px;height:11px"></i>
+            ${p.locationName || 'Local não informado'}
+          </div>
         </div>
-        <i data-lucide="${isSelected ? 'check-circle' : 'circle'}"
-           class="d-check" id="check-${p.uid}"
+        <i data-lucide="${isSelected ? 'check-circle' : 'circle'}" 
+           class="d-check" id="check-${p.uid}" 
            style="opacity:${isSelected ? 1 : 0.2}"></i>
       `;
                     div.onclick = () => togglePassengerSelection(p);
                     list.appendChild(div);
                 });
-
                 lucide.createIcons();
             });
         }
@@ -3826,10 +3853,19 @@
         window.onload = () => {
             lucide.createIcons();
             const splashEl = document.getElementById('auth-splash');
+            const bNav = document.querySelector('.bottom-nav');
+            
+            // Esconde nav bar inicialmente
+            if (bNav) bNav.style.display = 'none';
+
             firebase.auth().onAuthStateChanged(user => {
                 if (splashEl) splashEl.style.display = 'none';
-                if (user) { enterApp(user.uid); }
-                else { document.getElementById('screen-login').style.display = 'flex'; }
+                if (user) { 
+                    enterApp(user.uid); 
+                } else { 
+                    document.getElementById('screen-login').style.display = 'flex';
+                    if (bNav) bNav.style.display = 'none';
+                }
             });
         };
         async function cancelDriverRoute() {
