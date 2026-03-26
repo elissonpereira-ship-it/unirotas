@@ -262,8 +262,12 @@
 
         .login-logo {
             width: 100px;
-            margin-bottom: 20px;
-            filter: drop-shadow(0 8px 20px rgba(191, 154, 86, 0.3));
+            height: auto;
+            max-width: 120px;
+            display: block;
+            margin: 0 auto 20px;
+            image-rendering: -webkit-optimize-contrast; /* melhora nitidez no iOS */
+            image-rendering: crisp-edges;
         }
 
         .login-brand {
@@ -1175,7 +1179,7 @@
             height: 64px;
             background: var(--surface);
             border-top: 1px solid var(--border);
-            display: flex;
+            display: none;
             align-items: center;
             justify-content: space-around;
             z-index: 200;
@@ -2308,7 +2312,7 @@
         // Meeting globals
         let currentMeetingRole = null;
         let selectedPassengers = [];
-        let meetingListeners = {};
+        let meetingListeners = [];
         let currentNotifCallback = null;
         let currentMeetingId = null;
         let currentDriverUid = null;
@@ -2454,6 +2458,8 @@
             const screenApp = document.getElementById('screen-app');
             if (screenLogin) { screenLogin.classList.add('hidden'); screenLogin.style.display = 'none'; }
             if (screenApp) { screenApp.classList.remove('hidden'); screenApp.style.display = 'flex'; }
+            const bNav = document.querySelector('.bottom-nav');
+            if (bNav) bNav.style.display = 'flex';
             const snap = await firebase.database().ref('usuarios/' + uid).once('value');
             const data = snap.val() || {};
             currentVendorName = data.name || 'Vendedor';
@@ -2655,7 +2661,9 @@
 
         // ── MEETING NOTIFICATION LISTENER ────────────────────────────────────────
         function listenForMeetingNotifications(uid) {
-            firebase.database().ref(`meeting/notifications/${uid}`).on('value', async snap => {
+            const ref = firebase.database().ref(`meeting/notifications/${uid}`);
+            meetingListeners.push(ref);
+            ref.on('value', async snap => {
                 const notif = snap.val();
                 if (!notif || notif.handled) return;
 
@@ -3077,10 +3085,9 @@
             currentDriverUid = driverUid;
 
             // Escuta posição/nome do motorista
-            if (driverInfoListener) {
-                firebase.database().ref(`vendedores/${currentDriverUid}`).off('value', driverInfoListener);
-            }
-            driverInfoListener = firebase.database().ref(`vendedores/${driverUid}`).on('value', snap => {
+            const dRef = firebase.database().ref(`vendedores/${currentDriverUid}`);
+            meetingListeners.push(dRef);
+            driverInfoListener = dRef.on('value', snap => {
                 const d = snap.val();
                 if (!d) return;
                 document.getElementById('passenger-driver-name').textContent = 'Motorista: ' + (d.name || '');
@@ -3093,11 +3100,9 @@
                 }
             });
 
-            // ✅ Listener em tempo real no próprio estado do carona
-            if (passengerStateListener) {
-                firebase.database().ref(`meeting/participants/${currentVendorUid}`).off('value', passengerStateListener);
-            }
-            passengerStateListener = firebase.database().ref(`meeting/participants/${currentVendorUid}`).on('value', snap => {
+            const sRef = firebase.database().ref(`meeting/participants/${currentVendorUid}`);
+            meetingListeners.push(sRef);
+            passengerStateListener = sRef.on('value', snap => {
                 const data = snap.val();
                 if (!data) return; // removido pelo motorista → tratado por cancelPassengerWaiting
 
@@ -3179,12 +3184,9 @@
             const list = document.getElementById('available-passengers-list');
             list.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
 
-            // Remove listener anterior se existir
-            if (availablePassengersListener) {
-                firebase.database().ref('meeting/participants').off('value', availablePassengersListener);
-            }
-
-            availablePassengersListener = firebase.database().ref('meeting/participants').on('value', snap => {
+            const pRef = firebase.database().ref('meeting/participants');
+            meetingListeners.push(pRef);
+            availablePassengersListener = pRef.on('value', snap => {
                 const all = snap.val();
                 const waiting = all
                     ? Object.values(all).filter(p =>
@@ -3280,27 +3282,67 @@
             showToast('Rota iniciada! Convites enviados.', 'success');
         }
 
-        function cancelDriver() {
-            // Para o listener de caronas disponíveis
-            if (availablePassengersListener) {
-                firebase.database().ref('meeting/participants').off('value', availablePassengersListener);
-                availablePassengersListener = null;
+        async function cancelDriver() {
+            if (!currentVendorUid) return;
+
+            // Desativa o botão imediatamente para evitar cliques múltiplos
+            const btns = document.querySelectorAll('.action-btn.danger');
+            btns.forEach(b => b.disabled = true);
+
+            try {
+                // 1. Remove o participante do Firebase
+                await firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
+
+                // 2. Remove os pickups do motorista (se existirem)
+                await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
+
+                // 3. Notifica passageiros selecionados que a rota foi cancelada
+                if (selectedPassengers && selectedPassengers.length > 0) {
+                    for (const p of selectedPassengers) {
+                        try {
+                            await firebase.database().ref(`meeting/participants/${p.uid}`).update({
+                                embarkStatus: 'waiting',
+                                driverUid: null
+                            });
+                            await firebase.database().ref(`meeting/notifications/${p.uid}`).set({
+                                type: 'driverCancelled',
+                                driverName: currentVendorName,
+                                handled: false,
+                                timestamp: Date.now()
+                            });
+                        } catch (e) { console.error('Erro notificando passageiro:', e); }
+                    }
+                }
+            } catch (e) {
+                console.error('Erro ao cancelar:', e);
             }
+
+            // 4. Limpa todos os estados locais
             currentMeetingRole = null;
             selectedPassengers = [];
-            firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
+            meetingLocationData = null;
+
+            // 5. Desliga todos os listeners ativos de reunião
+            if (Array.isArray(meetingListeners)) {
+                meetingListeners.forEach(ref => {
+                    try { ref.off(); } catch (e) { }
+                });
+            }
+            meetingListeners = [];
+
+            // 6. Volta para a tela inicial de uma vez
             showMeetingView('meeting-role-select');
+            showToast('Participação cancelada.', 'success');
+
+            // 7. Reabilita os botões
+            btns.forEach(b => b.disabled = false);
         }
 
         function loadPickupList() {
             // Remove listener anterior
-            if (pickupListListener) {
-                firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).off('value', pickupListListener);
-            }
-
-            const container = document.getElementById('driver-pickup-list');
-
-            pickupListListener = firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).on('value', snap => {
+            const pkRef = firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`);
+            meetingListeners.push(pkRef);
+            pickupListListener = pkRef.on('value', snap => {
                 const raw = snap.val();
                 if (!raw) {
                     container.innerHTML = '';
@@ -3585,13 +3627,9 @@
             document.getElementById('meeting-chat-messages').innerHTML = '';
             document.getElementById('meeting-chat-input').value = '';
 
-            // Remove listener anterior
-            if (meetingChatListener) {
-                firebase.database().ref(`meeting/chats/${roomKey}`).off('value', meetingChatListener);
-            }
-
-            // Escuta mensagens em tempo real
-            meetingChatListener = firebase.database().ref(`meeting/chats/${roomKey}`).on('value', snap => {
+            const cRef = firebase.database().ref(`meeting/chats/${roomKey}`);
+            meetingListeners.push(cRef);
+            meetingChatListener = cRef.on('value', snap => {
                 const msgs = snap.val();
                 const container = document.getElementById('meeting-chat-messages');
                 container.innerHTML = '';
@@ -3662,7 +3700,9 @@
             const today = new Date().toISOString().split('T')[0];
             const roomKey = today + '_' + [currentVendorUid, partnerUid].sort().join('_');
 
-            firebase.database().ref(`meeting/chats/${roomKey}`).on('value', snap => {
+            const nRef = firebase.database().ref(`meeting/chats/${roomKey}`);
+            meetingListeners.push(nRef);
+            nRef.on('value', snap => {
                 const msgs = snap.val();
                 if (!msgs) return;
 
@@ -3793,37 +3833,7 @@
             });
         };
         async function cancelDriverRoute() {
-            if (selectedPassengers && selectedPassengers.length > 0) {
-                for (const p of selectedPassengers) {
-                    // Reseta status do carona para "waiting" (aparece novamente na lista)
-                    await firebase.database().ref(`meeting/participants/${p.uid}`).update({
-                        embarkStatus: 'waiting',
-                        driverUid: null
-                    });
-                    // Envia notificação de cancelamento para o carona
-                    await firebase.database().ref(`meeting/notifications/${p.uid}`).set({
-                        type: 'driverCancelled',
-                        driverName: currentVendorName,
-                        handled: false,
-                        timestamp: Date.now()
-                    });
-                    await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}/${p.uid}`).remove();
-                }
-            }
-
-            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
-            await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
-
-            if (passengersListener) {
-                firebase.database().ref('meeting/participants').off('value', passengersListener);
-                passengersListener = null;
-            }
-
-            currentMeetingRole = null;
-            selectedPassengers = [];
-
-            showMeetingView('meeting-role-select');
-            showToast('Rota cancelada. Voltando ao menu.', 'error');
+            await cancelDriver();
         }
 
         // ===== SAUDAÇÃO DINÂMICA =====
