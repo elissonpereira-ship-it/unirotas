@@ -1694,10 +1694,19 @@
         }
 
         @keyframes pulse-gold {
-            0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.4); }
-            70% { box-shadow: 0 0 0 15px rgba(212, 175, 55, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+            0% {
+                box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 15px rgba(212, 175, 55, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(212, 175, 55, 0);
+            }
         }
+
         .empty-state {
             text-align: center;
             padding: 40px 20px;
@@ -1815,46 +1824,147 @@
         }
 
         /* SEAT INDICATOR */
-        .seat-row { display: flex; gap: 5px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
-        .seat { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; border: 1px solid var(--border); transition: all 0.2s; }
-        .seat.driver-seat { background: linear-gradient(135deg, #a67c00, #d4af37); border: none; }
-        .seat.taken { background: var(--gold-light); border-color: var(--gold-border); }
-        .seat.empty { background: var(--glass); opacity: 0.5; }
+        .seat-row {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .seat {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            border: 1px solid var(--border);
+            transition: all 0.2s;
+        }
+
+        .seat.driver-seat {
+            background: linear-gradient(135deg, #a67c00, #d4af37);
+            border: none;
+        }
+
+        .seat.taken {
+            background: var(--gold-light);
+            border-color: var(--gold-border);
+        }
+
+        .seat.empty {
+            background: var(--glass);
+            opacity: 0.5;
+        }
 
         /* BOTÃO SUGESTÃO AUTOMÁTICA */
         .auto-suggest-btn {
-          width: 100%; padding: 13px; border-radius: 14px;
-          background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.3);
-          color: var(--info); font-family: inherit; font-size: 0.88rem; font-weight: 700;
-          cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
-          margin-bottom: 16px; transition: all 0.2s;
+            width: 100%;
+            padding: 13px;
+            border-radius: 14px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: var(--info);
+            font-family: inherit;
+            font-size: 0.88rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            transition: all 0.2s;
         }
-        .auto-suggest-btn:hover { background: rgba(59,130,246,0.2); transform: translateY(-1px); }
+
+        .auto-suggest-btn:hover {
+            background: rgba(59, 130, 246, 0.2);
+            transform: translateY(-1px);
+        }
 
         /* DISTANCE TAG */
         .dist-tag {
-          font-size: 0.68rem; padding: 2px 6px; border-radius: 4px;
-          background: rgba(16,185,129,0.1); color: var(--success);
-          font-weight: 600; margin-left: 8px;
+            font-size: 0.68rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            font-weight: 600;
+            margin-left: 8px;
         }
 
         /* ECONOMY PANEL */
         .eco-panel {
-          background: linear-gradient(160deg, var(--surface2), var(--surface));
-          border: 1px solid var(--gold-border); border-radius: 20px;
-          padding: 20px; margin-bottom: 24px; position: relative; overflow: hidden;
+            background: linear-gradient(160deg, var(--surface2), var(--surface));
+            border: 1px solid var(--gold-border);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 24px;
+            position: relative;
+            overflow: hidden;
         }
+
         .eco-panel::before {
-          content: ''; position: absolute; top: -50%; right: -20%; width: 150px; height: 150px;
-          background: var(--gold); filter: blur(80px); opacity: 0.1; pointer-events: none;
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 150px;
+            height: 150px;
+            background: var(--gold);
+            filter: blur(80px);
+            opacity: 0.1;
+            pointer-events: none;
         }
-        .eco-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .eco-title { font-size: 0.85rem; font-weight: 700; color: var(--gold); letter-spacing: 1px; text-transform: uppercase; }
-        .eco-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .eco-card { background: var(--glass); padding: 12px; border-radius: 14px; border: 1px solid var(--border); }
-        .eco-label { font-size: 0.7rem; color: var(--muted); margin-bottom: 4px; display: block; }
-        .eco-val { font-size: 1.1rem; font-weight: 700; color: var(--text); }
-        .eco-unit { font-size: 0.75rem; color: var(--muted); margin-left: 3px; }
+
+        .eco-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .eco-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--gold);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .eco-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .eco-card {
+            background: var(--glass);
+            padding: 12px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+        }
+
+        .eco-label {
+            font-size: 0.7rem;
+            color: var(--muted);
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .eco-val {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .eco-unit {
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-left: 3px;
+        }
     </style>
 </head>
 
@@ -2050,20 +2160,20 @@
             </button>
             <!-- PAINEL DE ECONOMIA PREMIUM -->
             <div class="eco-panel" id="eco-panel">
-              <div class="eco-header">
-                <span class="eco-title">Impacto de Carona</span>
-                <i data-lucide="leaf" style="color:var(--success);width:18px;height:18px;"></i>
-              </div>
-              <div class="eco-grid">
-                <div class="eco-card">
-                  <span class="eco-label">Caronas Dadas</span>
-                  <div class="eco-val" id="eco-rides">0</div>
+                <div class="eco-header">
+                    <span class="eco-title">Impacto de Carona</span>
+                    <i data-lucide="leaf" style="color:var(--success);width:18px;height:18px;"></i>
                 </div>
-                <div class="eco-card">
-                  <span class="eco-label">KM Economizados</span>
-                  <div class="eco-val" id="eco-km">0.0<span class="eco-unit">km</span></div>
+                <div class="eco-grid">
+                    <div class="eco-card">
+                        <span class="eco-label">Caronas Dadas</span>
+                        <div class="eco-val" id="eco-rides">0</div>
+                    </div>
+                    <div class="eco-card">
+                        <span class="eco-label">KM Economizados</span>
+                        <div class="eco-val" id="eco-km">0.0<span class="eco-unit">km</span></div>
+                    </div>
                 </div>
-              </div>
             </div>
 
             <!-- BADGE REUNIÃO ATIVA -->
@@ -2145,7 +2255,8 @@
             <!-- TELA 0B: Seleção de LOCAL da reunião -->
             <div id="meeting-location-select" class="hidden">
                 <div class="section-title">SUGESTÕES DE LOCAL</div>
-                <div id="meeting-locations-suggestion-list" style="margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px;">
+                <div id="meeting-locations-suggestion-list"
+                    style="margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px;">
                     <div class="empty-state">
                         <i data-lucide="map-pin"></i>
                         <p>Carregando locais disponíveis...</p>
@@ -2186,17 +2297,20 @@
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                         <h3 style="margin:0">STATUS DO EMBARQUE</h3>
                         <div id="passenger-driver-chat-wrap" style="display:none;">
-                            <button class="p-btn-small chat" onclick="openMeetingChatWithDriver()" style="padding:6px 12px; font-size:0.75rem;">
+                            <button class="p-btn-small chat" onclick="openMeetingChatWithDriver()"
+                                style="padding:6px 12px; font-size:0.75rem;">
                                 <i data-lucide="message-circle" style="width:14px;"></i> Chat
                             </button>
                         </div>
                     </div>
-                    <div id="passenger-embark-status" style="text-align:center; padding:10px 0; font-size:0.9rem; color:var(--muted);">
+                    <div id="passenger-embark-status"
+                        style="text-align:center; padding:10px 0; font-size:0.9rem; color:var(--muted);">
                         Acompanhe o deslocamento pelo mapa.
                     </div>
                 </div>
 
-                <button id="btn-passenger-confirm-presence" class="action-btn gold hidden" onclick="passengerConfirmPresence()">
+                <button id="btn-passenger-confirm-presence" class="action-btn gold hidden"
+                    onclick="passengerConfirmPresence()">
                     <i data-lucide="check-circle"></i> Confirmar Presença (GPS)
                 </button>
 
@@ -2225,20 +2339,22 @@
                 <div class="meeting-card">
                     <!-- BOTÃO SUGESTÃO AUTOMÁTICA -->
                     <button class="auto-suggest-btn" id="btn-auto-suggest" onclick="autoSuggestPassengers()">
-                      <i data-lucide="zap"></i>
-                      Sugestão Automática (Proximidade)
+                        <i data-lucide="zap"></i>
+                        Sugestão Automática (Proximidade)
                     </button>
 
                     <!-- INDICADOR DE ASSENTOS -->
                     <div style="margin-bottom: 20px;">
-                      <div style="font-size:0.75rem; color:var(--muted); font-weight:600; text-transform:uppercase;">Capacidade do Veículo</div>
-                      <div class="seat-row" id="seat-indicator">
-                        <div class="seat driver-seat" title="Motorista"><i data-lucide="user" style="width:14px;"></i></div>
-                        <div class="seat empty" title="Vaga 1"></div>
-                        <div class="seat empty" title="Vaga 2"></div>
-                        <div class="seat empty" title="Vaga 3"></div>
-                        <div class="seat empty" title="Vaga 4"></div>
-                      </div>
+                        <div style="font-size:0.75rem; color:var(--muted); font-weight:600; text-transform:uppercase;">
+                            Capacidade do Veículo</div>
+                        <div class="seat-row" id="seat-indicator">
+                            <div class="seat driver-seat" title="Motorista"><i data-lucide="user"
+                                    style="width:14px;"></i></div>
+                            <div class="seat empty" title="Vaga 1"></div>
+                            <div class="seat empty" title="Vaga 2"></div>
+                            <div class="seat empty" title="Vaga 3"></div>
+                            <div class="seat empty" title="Vaga 4"></div>
+                        </div>
                     </div>
 
                     <h3>VENDEDORES DISPONÍVEIS (CARONA)</h3>
@@ -2280,11 +2396,13 @@
                 </div>
 
                 <!-- BOTOES DE AÇÃO -->
-                <button id="btn-confirm-all-presence" class="action-btn gold hidden" onclick="confirmAllPresence()" disabled style="opacity:0.5; cursor:not-allowed;">
+                <button id="btn-confirm-all-presence" class="action-btn gold hidden" onclick="confirmAllPresence()"
+                    disabled style="opacity:0.5; cursor:not-allowed;">
                     <i data-lucide="lock" id="icon-confirm-all"></i> Confirmar Presença de Todos (GPS)
                 </button>
 
-                <button id="btn-driver-confirm-presence" class="action-btn gold hidden" onclick="driverConfirmPresence()">
+                <button id="btn-driver-confirm-presence" class="action-btn gold hidden"
+                    onclick="driverConfirmPresence()">
                     <i data-lucide="check-circle"></i> Confirmar Minha Presença (GPS)
                 </button>
 
@@ -2459,22 +2577,22 @@
         // ── MEETING HARD RESET ───────────────────────────────────────────────────
         async function MeetingHardReset() {
             console.log("Starting Meeting Hard Reset...");
-            
+
             // 1. Limpa Listeners do Firebase
             if (pickupListListener) { firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).off('value', pickupListListener); pickupListListener = null; }
             if (driverInfoListener && currentDriverUid) { firebase.database().ref(`vendedores/${currentDriverUid}`).off('value', driverInfoListener); driverInfoListener = null; }
             if (passengerStateListener) { firebase.database().ref(`meeting/participants/${currentVendorUid}`).off('value', passengerStateListener); passengerStateListener = null; }
-            
+
             // 2. Reseta Globais
             currentMeetingRole = null;
             currentDriverUid = null;
             meetingLocationData = null;
             selectedPassengers = [];
-            
+
             // 3. Reseta UI (Esconde todas as telas de reunião)
             const meetingViews = [
-                'meeting-role-select', 'meeting-location-select', 'meeting-passenger-waiting', 
-                'meeting-passenger-selected', 'meeting-driver-select', 'meeting-driver-route', 
+                'meeting-role-select', 'meeting-location-select', 'meeting-passenger-waiting',
+                'meeting-passenger-selected', 'meeting-driver-select', 'meeting-driver-route',
                 'meeting-driver-return', 'meeting-individual', 'meeting-individual-reunion'
             ];
             meetingViews.forEach(v => {
@@ -2492,7 +2610,7 @@
                     btn.style.opacity = '0.5';
                 }
             });
-            
+
             const confirmedViews = ['individual-confirmed', 'passenger-reunion-status', 'driver-meeting-in-progress'];
             confirmedViews.forEach(id => {
                 const el = document.getElementById(id);
@@ -2504,7 +2622,7 @@
                 const snap = await firebase.database().ref(`meeting/participants/${currentVendorUid}`).once('value');
                 const p = snap.val();
                 if (p && p.status !== 'finished' && p.phase !== 'return') {
-                     await firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
+                    await firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
                 }
             }
         }
@@ -2700,7 +2818,7 @@
                 const user = firebase.auth().currentUser;
                 if (user) firebase.database().ref('vendedores/' + user.uid).update({ lat, lon, lastActive: firebase.database.ServerValue.TIMESTAMP });
                 updateQuickCards();
-                
+
                 // ✅ Atualiza status do botão de presença universal
                 updateUniversalPresence();
             }, err => showToast('Erro GPS: ' + err.message, 'error'), { enableHighAccuracy: true, maximumAge: 5000 });
@@ -3068,12 +3186,12 @@
 
         function restoreMeetingState(data) {
             currentMeetingRole = data.role;
-            
+
             // Atualiza badge de local se existir
             if (data.locationName) {
                 const badge = document.getElementById('meeting-location-name');
                 if (badge) badge.textContent = data.locationName;
-                
+
                 // RESTORE GLOBAL DATA FOR DISTANCE CHECKS
                 meetingLocationData = {
                     name: data.locationName,
@@ -3215,7 +3333,7 @@
                     const infoDriverMeeting = document.getElementById('driver-meeting-in-progress');
                     if (btnDriverConfirm) btnDriverConfirm.classList.remove('hidden');
                     if (infoDriverMeeting) infoDriverMeeting.classList.add('hidden');
-                    
+
                     showMeetingView('meeting-driver-select');
                     selectedPassengers = []; // Garante lista limpa ao entrar
                     updateSeatIndicator();
@@ -3226,7 +3344,7 @@
                     const infoIndConfirmed = document.getElementById('individual-confirmed');
                     if (btnIndConfirm) btnIndConfirm.classList.remove('hidden');
                     if (infoIndConfirmed) infoIndConfirmed.classList.add('hidden');
-                    
+
                     showMeetingView('meeting-individual');
                 }
             } catch (e) {
@@ -3540,8 +3658,8 @@
                     const isSelected = selectedPassengers.some(s => s.uid === p.uid);
                     let distLabel = '';
                     if (p.lat && lastLat) {
-                      const d = calcDistHaversine(lastLat, lastLon, p.lat, p.lng);
-                      distLabel = `<span class="dist-tag">${Math.round(d)}m</span>`;
+                        const d = calcDistHaversine(lastLat, lastLon, p.lat, p.lng);
+                        distLabel = `<span class="dist-tag">${Math.round(d)}m</span>`;
                     }
 
                     const div = document.createElement('div');
@@ -3741,33 +3859,34 @@
         }
 
         // ── UNIVERSAL PRESENCE LOGIC ───────────────────────────────────────────
-        function updateUniversalPresence() {
+        async function updateUniversalPresence() {
             if (!meetingLocationData || !lastLat || !lastLon) return;
 
+            // Busca fase atual para não reativar botões se já estiver em reunião
+            const phaseSnap = await firebase.database().ref(`meeting/participants/${currentVendorUid}/phase`).once('value');
+            const currentPhase = phaseSnap.val();
+            if (currentPhase === 'meeting' || currentPhase === 'return') return;
+
             const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
-            const IS_NEAR = dist < 500; // 500 metros
+            const IS_NEAR = dist < 500; 
 
             // 1. Botão Individual
             const btnInd = document.getElementById('btn-individual-confirm');
-            if (btnInd) {
-                if (IS_NEAR && currentMeetingRole === 'individual') {
-                    btnInd.classList.remove('hidden');
-                    btnInd.disabled = false;
-                    btnInd.style.opacity = '1';
-                }
+            if (btnInd && currentMeetingRole === 'individual') {
+                btnInd.classList.toggle('hidden', !IS_NEAR);
+                btnInd.disabled = !IS_NEAR;
+                btnInd.style.opacity = IS_NEAR ? '1' : '0.5';
             }
 
             // 2. Botão Carona
             const btnPax = document.getElementById('btn-passenger-confirm-presence');
-            if (btnPax) {
-                if (IS_NEAR && currentMeetingRole === 'passenger') {
-                    btnPax.classList.remove('hidden');
-                    btnPax.disabled = false;
-                    btnPax.style.opacity = '1';
-                }
+            if (btnPax && currentMeetingRole === 'passenger') {
+                btnPax.classList.toggle('hidden', !IS_NEAR);
+                btnPax.disabled = !IS_NEAR;
+                btnPax.style.opacity = IS_NEAR ? '1' : '0.5';
             }
 
-            // 3. Botão Motorista (Individual e Coletivo)
+            // 3. Botões Motorista
             const btnDriverMe = document.getElementById('btn-driver-confirm-presence');
             const btnAll = document.getElementById('btn-confirm-all-presence');
             const iconAll = document.getElementById('icon-confirm-all');
@@ -3775,10 +3894,10 @@
             if (currentMeetingRole === 'driver') {
                 if (IS_NEAR) {
                     if (btnDriverMe) { btnDriverMe.classList.remove('hidden'); btnDriverMe.disabled = false; btnDriverMe.style.opacity = '1'; }
-                    if (btnAll) { 
-                        btnAll.classList.remove('hidden'); 
-                        btnAll.disabled = false; 
-                        btnAll.style.opacity = '1'; 
+                    if (btnAll) {
+                        btnAll.classList.remove('hidden');
+                        btnAll.disabled = false;
+                        btnAll.style.opacity = '1';
                         btnAll.style.cursor = 'pointer';
                         if (iconAll) iconAll.setAttribute('data-lucide', 'unlock');
                     }
@@ -3844,30 +3963,66 @@
             if (!meetingLocationData) return;
             const today = new Date().toISOString().split('T')[0];
             const ts = Date.now();
+            showToast('Validando GPS de todos...', 'info');
+            
             try {
-                await firebase.database().ref(`meeting/attendance/${today}/${currentVendorUid}`).set({ name: currentVendorName, role: 'driver', confirmedAt: ts });
+                // 1. Confirma o Motorista
+                await firebase.database().ref(`meeting/attendance/${today}/${currentVendorUid}`).set({ 
+                    name: currentVendorName, role: 'driver', confirmedAt: ts, method: 'collective' 
+                });
                 await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'meeting', presenceConfirmed: true });
+
+                // 2. Busca caronas BOARDED e valida GPS Individual de cada um
                 const snap = await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
                 const pickups = snap.val() ? Object.values(snap.val()) : [];
+                
+                let successCount = 0;
+                let fraudCount = 0;
+
                 for (const p of pickups) {
                     if (p.status === 'boarded') {
-                        await firebase.database().ref(`meeting/attendance/${today}/${p.uid}`).set({ name: p.name, role: 'passenger', confirmedAt: ts, driverName: currentVendorName });
-                        await firebase.database().ref(`meeting/participants/${p.uid}`).update({ phase: 'meeting', presenceConfirmed: true });
+                        // VERIFICAÇÃO ANTI-FRAUDE: Pega GPS atual do carona no Firebase
+                        const pSnap = await firebase.database().ref(`meeting/participants/${p.uid}`).once('value');
+                        const pData = pSnap.val();
+                        
+                        if (pData && pData.lat && pData.lng) {
+                            const pDist = calcDistance(pData.lat, pData.lng, meetingLocationData.lat, meetingLocationData.lng);
+                            if (pDist < 600) { // Tolerância de 600m para o carona
+                                await firebase.database().ref(`meeting/attendance/${today}/${p.uid}`).set({ 
+                                    name: p.name, role: 'passenger', confirmedAt: ts, driverName: currentVendorName, method: 'via_driver' 
+                                });
+                                await firebase.database().ref(`meeting/participants/${p.uid}`).update({ phase: 'meeting', presenceConfirmed: true });
+                                successCount++;
+                            } else {
+                                fraudCount++;
+                                console.warn(`Fraude detectada ou GPS impreciso para ${p.name}. Distância: ${Math.round(pDist)}m`);
+                            }
+                        }
                     }
                 }
+
                 showDriverMeetingInProgress();
-                showToast('Presença confirmada para todos!', 'success');
+                if (fraudCount > 0) {
+                    showToast(`Presença confirmada (${successCount}). ${fraudCount} caronas não foram validados por distância GPS.`, 'warning');
+                } else {
+                    showToast('Presença confirmada para todos!', 'success');
+                }
             } catch (e) { showToast('Erro: ' + e.message, 'error'); }
         }
-        
-        function showMeetingStatusInReunion() {
-             // Função auxiliar para UI
+
+        function showDriverMeetingInProgress() {
+            const div = document.getElementById('driver-meeting-in-progress');
+            if (div) div.classList.remove('hidden');
+            const btnAll = document.getElementById('btn-confirm-all-presence');
+            if (btnAll) btnAll.classList.add('hidden');
+            const btnMe = document.getElementById('btn-driver-confirm-presence');
+            if (btnMe) btnMe.classList.add('hidden');
         }
 
         function showMeetingView(viewId) {
             const views = [
-                'meeting-role-select', 'meeting-location-select', 'meeting-passenger-waiting', 
-                'meeting-passenger-selected', 'meeting-driver-select', 'meeting-driver-route', 
+                'meeting-role-select', 'meeting-location-select', 'meeting-passenger-waiting',
+                'meeting-passenger-selected', 'meeting-driver-select', 'meeting-driver-route',
                 'meeting-driver-return', 'meeting-individual', 'meeting-individual-reunion'
             ];
             views.forEach(v => {
@@ -3969,9 +4124,9 @@
             if (lastLat === 0) { showToast('GPS inativo. Inicie o rastreamento.', 'error'); return; }
 
             const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
-            if (dist > 500) { 
-                showToast(`Você está muito longe (${Math.round(dist)}m). Aproxime-se do local.`, 'error'); 
-                return; 
+            if (dist > 500) {
+                showToast(`Você está muito longe (${Math.round(dist)}m). Aproxime-se do local.`, 'error');
+                return;
             }
 
             const meetDate = new Date().toISOString().split('T')[0];
