@@ -279,13 +279,14 @@
 
         /* ── LOGIN SCREEN ────────────────────────── */
         #screen-login {
-            display: flex;
+            display: flex !important;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             padding: 24px;
-            height: 100%;
+            min-height: 100vh;
             background: radial-gradient(ellipse at 50% 0%, #1a2a4a 0%, var(--bg) 70%);
+            overflow-y: auto;
         }
 
         .login-top {
@@ -293,7 +294,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 0 0 40px 0;
+            padding: 40px 0 20px 0;
             width: 100%;
         }
 
@@ -2717,6 +2718,45 @@
             document.getElementById('signup-fields').classList.toggle('hidden', !isSignupMode);
             document.getElementById('btn-login-action').textContent = isSignupMode ? 'ENVIAR CÓDIGO' : 'ENTRAR NO SISTEMA';
             document.getElementById('toggle-auth-text').textContent = isSignupMode ? 'Já tenho cadastro' : 'Solicitar novo cadastro';
+            
+            if (isSignupMode) {
+                setTimeout(initAddressAutocomplete, 100);
+            }
+        }
+
+        let addressAutocomplete;
+        function initAddressAutocomplete() {
+            const input = document.getElementById('addr-rua');
+            if (!input || addressAutocomplete) return;
+
+            addressAutocomplete = new google.maps.places.Autocomplete(input, {
+                types: ['address'],
+                componentRestrictions: { country: 'br' },
+                fields: ['address_components', 'geometry']
+            });
+
+            addressAutocomplete.addListener('place_changed', () => {
+                const place = addressAutocomplete.getPlace();
+                if (!place.address_components) return;
+
+                let street = '', number = '', neighborhood = '', city = '', state = '', cep = '';
+
+                for (const component of place.address_components) {
+                    const types = component.types;
+                    if (types.includes('route')) street = component.long_name;
+                    if (types.includes('street_number')) number = component.long_name;
+                    if (types.includes('sublocality_level_1')) neighborhood = component.long_name;
+                    if (types.includes('locality')) city = component.long_name;
+                    if (types.includes('administrative_area_level_1')) state = component.short_name;
+                    if (types.includes('postal_code')) cep = component.long_name;
+                }
+
+                if (street) input.value = street;
+                document.getElementById('addr-num').value = number;
+                document.getElementById('addr-bairro').value = neighborhood;
+                document.getElementById('addr-cidade').value = city;
+                document.getElementById('addr-cep').value = cep;
+            });
         }
 
         document.getElementById('user-cpf-input').addEventListener('input', function () {
