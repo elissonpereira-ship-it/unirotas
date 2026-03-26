@@ -2241,6 +2241,13 @@
                     onclick="driverConfirmPresence()">
                     <i data-lucide="check-circle"></i> Confirmar Presença na Reunião
                 </button>
+
+                <!-- NOVO: BOTÃO DE PRESENÇA COLETIVA (BLOQUEIO GPS) -->
+                <button id="btn-confirm-all-presence" class="action-btn gold hidden" 
+                        onclick="confirmAllPresence()" disabled style="opacity:0.5; cursor:not-allowed;">
+                    <i data-lucide="lock" id="icon-confirm-all"></i> 
+                    Confirmar Presença de Todos (GPS)
+                </button>
                 <div id="driver-meeting-in-progress" class="hidden" style="text-align:center;padding:20px 0;">
                     <div class="big-status-icon success"><i data-lucide="users"></i></div>
                     <div class="status-label">Reunião em andamento</div>
@@ -2591,6 +2598,9 @@
                 const user = firebase.auth().currentUser;
                 if (user) firebase.database().ref('vendedores/' + user.uid).update({ lat, lon, lastActive: firebase.database.ServerValue.TIMESTAMP });
                 updateQuickCards();
+                
+                // ✅ Atualiza status do botão de presença se estiver na tela de rota
+                updatePresenceButtonStatus();
             }, err => showToast('Erro GPS: ' + err.message, 'error'), { enableHighAccuracy: true, maximumAge: 5000 });
         }
         function stopTracking() {
@@ -2743,6 +2753,11 @@
 
                 // ─── NOTIFICAÇÃO 1: Motorista quer te levar (aceitar viagem) ───
                 if (notif.type === 'pickup_request') {
+                    // ✅ DEFESA: Se eu já sou motorista, ignoro convites de carona
+                    if (currentMeetingRole === 'driver') {
+                        await firebase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
+                        return;
+                    }
                     showMeetingView('meeting-passenger-selected');
                     listenForDriverInfo(notif.driverUid);
 
@@ -3484,6 +3499,8 @@
             if (selectedPassengers.length === 0) return;
 
             for (const p of selectedPassengers) {
+                if (p.uid === currentVendorUid) continue; // ✅ Defesa: não notifica a si mesmo
+
                 // Notifica carona para ACEITAR A VIAGEM (não o embarque)
                 await firebase.database().ref(`meeting/notifications/${p.uid}`).set({
                     type: 'pickup_request',
@@ -3548,8 +3565,17 @@
                 // Considera resolvidos apenas se todos estiverem a bordo ou recusaram/não embarcaram
                 const allResolved = pickups.every(p => p.status === 'boarded' || p.status === 'refused' || p.status === 'not_boarded');
                 if (allResolved) {
-                    document.getElementById('btn-driver-confirm-presence').classList.remove('hidden');
+                    // Substitui o botão individual pelo coletivo se houver passageiros boarded
+                    const hasBoarded = pickups.some(p => p.status === 'boarded');
+                    if (hasBoarded) {
+                        document.getElementById('btn-confirm-all-presence').classList.remove('hidden');
+                        document.getElementById('btn-driver-confirm-presence').classList.add('hidden');
+                    } else {
+                        document.getElementById('btn-confirm-all-presence').classList.add('hidden');
+                        document.getElementById('btn-driver-confirm-presence').classList.remove('hidden');
+                    }
                 } else {
+                    document.getElementById('btn-confirm-all-presence').classList.add('hidden');
                     document.getElementById('btn-driver-confirm-presence').classList.add('hidden');
                 }
 
@@ -3653,6 +3679,90 @@
 
         function showDriverMeetingInProgress() {
             document.getElementById('driver-meeting-in-progress').classList.remove('hidden');
+            document.getElementById('btn-confirm-all-presence').classList.add('hidden'); // Garante que some
+        }
+
+        // ✅ Monitora distância para desbloquear botão de todos
+        function updatePresenceButtonStatus() {
+            const btn = document.getElementById('btn-confirm-all-presence');
+            if (!btn || btn.classList.contains('hidden') || !meetingLocationData || lastLat === 0) return;
+
+            const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
+            const isNear = dist < 500;
+
+            if (isNear) {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+                const icon = document.getElementById('icon-confirm-all');
+                if (icon && icon.getAttribute('data-lucide') !== 'unlock') {
+                    icon.setAttribute('data-lucide', 'unlock');
+                    lucide.createIcons();
+                }
+            } else {
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+                const icon = document.getElementById('icon-confirm-all');
+                if (icon && icon.getAttribute('data-lucide') !== 'lock') {
+                    icon.setAttribute('data-lucide', 'lock');
+                    lucide.createIcons();
+                }
+            }
+        }
+
+        // ✅ Confirma presença de TODOS (Motorista + Caronas Embarcados)
+        async function confirmAllPresence() {
+            if (!meetingLocationData) { showToast('Local da reunião não definido.', 'error'); return; }
+            if (lastLat === 0) { showToast('GPS inativo. Inicie o rastreamento.', 'error'); return; }
+
+            const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
+            if (dist > 500) {
+                showToast(`Você está muito longe (${Math.round(dist)}m). Aproxime-se do local.`, 'error');
+                return;
+            }
+
+            const meetDate = new Date().toISOString().split('T')[0];
+            const timestamp = Date.now();
+
+            try {
+                // 1. Confirma Motorista
+                await firebase.database().ref(`meeting/attendance/${meetDate}/${currentVendorUid}`).set({
+                    name: currentVendorName,
+                    role: 'driver',
+                    confirmedAt: timestamp
+                });
+                await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({
+                    phase: 'meeting',
+                    presenceConfirmed: true
+                });
+
+                // 2. Confirma Passageiros Embarcados
+                const snap = await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
+                const pickups = snap.val() ? Object.values(snap.val()) : [];
+                
+                for (const p of pickups) {
+                    if (p.status === 'boarded') {
+                        // Registra presença do carona
+                        await firebase.database().ref(`meeting/attendance/${meetDate}/${p.uid}`).set({
+                            name: p.name,
+                            role: 'passenger',
+                            confirmedAt: timestamp,
+                            driverName: currentVendorName
+                        });
+                        // Muda fase do carona
+                        await firebase.database().ref(`meeting/participants/${p.uid}`).update({
+                            phase: 'meeting',
+                            presenceConfirmed: true
+                        });
+                    }
+                }
+
+                showDriverMeetingInProgress();
+                showToast('Presença confirmada para todos!', 'success');
+            } catch (e) {
+                showToast('Erro ao confirmar: ' + e.message, 'error');
+            }
         }
 
         async function endMeeting() {
