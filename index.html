@@ -3012,9 +3012,17 @@
                 if (currentMeetingRole === 'passenger') {
                     showMeetingView('meeting-passenger-waiting');
                 } else if (currentMeetingRole === 'driver') {
+                    // RESET DRIVER UI
+                    document.getElementById('btn-driver-confirm-presence').classList.remove('hidden');
+                    document.getElementById('driver-meeting-in-progress-info').classList.add('hidden');
+                    
                     showMeetingView('meeting-driver-select');
                     loadAvailablePassengers();
                 } else if (currentMeetingRole === 'individual') {
+                    // RESET INDIVIDUAL UI
+                    document.getElementById('btn-individual-confirm').classList.remove('hidden');
+                    document.getElementById('individual-confirmed').classList.add('hidden');
+                    
                     showMeetingView('meeting-individual');
                 }
             } catch (e) {
