@@ -242,41 +242,36 @@
             padding-bottom: 30px;
         }
 
-        /* Protege a tela de login do padding do bottom-nav */
+        /* ── LOGIN SCREEN ────────────────────────── */
         #screen-login {
             display: flex;
             flex-direction: column;
-            padding: 0;
-            overflow: hidden !important;
-            height: 100dvh !important; /* dvh = dynamic viewport height */
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+            height: 100%;
             background: radial-gradient(ellipse at 50% 0%, #1a2a4a 0%, var(--bg) 70%);
         }
 
         .login-top {
-            flex: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 40px 24px 10px;
-            min-height: 0;
+            padding: 0 0 40px 0;
+            width: 100%;
         }
 
         .login-logo {
-            width: 110px;
-            height: auto;
-            display: block;
-            margin: 0 auto 20px;
-            object-fit: contain;
-            -webkit-transform: translateZ(0);
-            transform: translateZ(0);
+            width: 100px;
+            margin-bottom: 20px;
+            filter: drop-shadow(0 8px 20px rgba(191, 154, 86, 0.3));
         }
 
         .login-brand {
             font-size: 2.2rem;
             font-weight: 800;
             letter-spacing: -0.5px;
-            text-align: center;
         }
 
         .login-brand span {
@@ -289,21 +284,16 @@
             letter-spacing: 2.5px;
             text-transform: uppercase;
             margin-top: 4px;
-            text-align: center;
         }
 
         .login-card {
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 24px 24px 0 0;
-            padding: 30px 24px max(30px, env(safe-area-inset-bottom));
-            flex-shrink: 0;
-        }
-
-        /* Remove bottom-nav na tela de login */
-        #screen-login ~ .bottom-nav,
-        body:has(#screen-login:not([style*="none"])) .bottom-nav {
-            display: none !important;
+            border-radius: 24px;
+            padding: 30px 24px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
         }
 
         .login-card h2 {
@@ -1190,7 +1180,7 @@
             height: 64px;
             background: var(--surface);
             border-top: 1px solid var(--border);
-            display: none;
+            display: flex;
             align-items: center;
             justify-content: space-around;
             z-index: 200;
@@ -1846,7 +1836,7 @@
     <!-- ══════════════════════════════════════ -->
     <div id="screen-login" class="screen" style="display:none">
         <div class="login-top">
-            <img src="assets/logo_empresa.png" alt="Logo" class="login-logo">
+            <img src="../assets/logo_empresa.png" alt="Logo" class="login-logo">
             <div class="login-brand"><span>Uni</span>Rotas</div>
             <div class="login-sub">Integridade Logística</div>
         </div>
@@ -2031,23 +2021,18 @@
                 </div>
             </div>
 
-            <!-- TELA 0.5 - Seleção de Local de Reunião -->
+            <!-- TELA 0B: Seleção de LOCAL da reunião -->
             <div id="meeting-location-select" class="hidden">
-              <div style="margin-bottom:16px">
-                <div class="section-title" style="margin-bottom:4px">LOCAL DA REUNIÃO</div>
-                <div style="font-size:0.78rem;color:var(--muted);line-height:1.5">
-                  Escolha o local onde acontecerá sua reunião de hoje.
+                <div class="section-title">SUGESTÕES DE LOCAL</div>
+                <div id="meeting-locations-suggestion-list" style="margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px;">
+                    <div class="empty-state">
+                        <i data-lucide="map-pin"></i>
+                        <p>Carregando locais disponíveis...</p>
+                    </div>
                 </div>
-              </div>
-              <div id="location-select-list">
-                <div class="empty-state">
-                  <i data-lucide="loader"></i>
-                  <p>Carregando locais...</p>
-                </div>
-              </div>
-              <button class="action-btn danger" style="margin-top:8px" onclick="backToRoleSelect()">
-                <i data-lucide="x"></i> Voltar
-              </button>
+                <button class="action-btn danger" onclick="showMeetingView('meeting-role-select')">
+                    <i data-lucide="arrow-left"></i> Voltar / Trocar Papel
+                </button>
             </div>
 
             <!-- TELA 1A: CARONA - Aguardando motorista -->
@@ -2323,7 +2308,7 @@
         // Meeting globals
         let currentMeetingRole = null;
         let selectedPassengers = [];
-        let meetingListeners = [];
+        let meetingListeners = {};
         let currentNotifCallback = null;
         let currentMeetingId = null;
         let currentDriverUid = null;
@@ -2469,8 +2454,6 @@
             const screenApp = document.getElementById('screen-app');
             if (screenLogin) { screenLogin.classList.add('hidden'); screenLogin.style.display = 'none'; }
             if (screenApp) { screenApp.classList.remove('hidden'); screenApp.style.display = 'flex'; }
-            const bNav = document.querySelector('.bottom-nav');
-            if (bNav) bNav.style.display = 'flex';
             const snap = await firebase.database().ref('usuarios/' + uid).once('value');
             const data = snap.val() || {};
             currentVendorName = data.name || 'Vendedor';
@@ -2487,7 +2470,7 @@
             initVendedorMap();
             listenForRoute(uid);
             listenForMeetingNotifications(uid);
-            // listenForMeetingLocation();
+            listenForMeetingLocation();
 
             firebase.database().ref(`typing/${uid}/admin`).on('value', s => {
                 document.getElementById('vendor-typing').style.display = s.val() ? 'block' : 'none';
@@ -2672,9 +2655,7 @@
 
         // ── MEETING NOTIFICATION LISTENER ────────────────────────────────────────
         function listenForMeetingNotifications(uid) {
-            const ref = firebase.database().ref(`meeting/notifications/${uid}`);
-            meetingListeners.push(ref);
-            ref.on('value', async snap => {
+            firebase.database().ref(`meeting/notifications/${uid}`).on('value', async snap => {
                 const notif = snap.val();
                 if (!notif || notif.handled) return;
 
@@ -2849,7 +2830,11 @@
             firebase.database().ref(`meeting/participants/${currentVendorUid}`).once('value').then(snap => {
                 const data = snap.val();
                 if (data && data.role && data.status !== 'finished') {
-                    restoreMeetingState(data);
+                    if (!data.locationId) {
+                        selectRole(data.role);
+                    } else {
+                        restoreMeetingState(data);
+                    }
                 } else {
                     showMeetingView('meeting-role-select');
                 }
@@ -2858,6 +2843,13 @@
 
         function restoreMeetingState(data) {
             currentMeetingRole = data.role;
+            
+            // Atualiza badge de local se existir
+            if (data.locationName) {
+                const badge = document.getElementById('meeting-location-name');
+                if (badge) badge.textContent = data.locationName;
+            }
+
             if (data.role === 'passenger') {
                 if (data.embarkStatus === 'waiting') showMeetingView('meeting-passenger-waiting');
                 else if (data.driverUid) {
@@ -2870,6 +2862,10 @@
                 else { showMeetingView('meeting-driver-route'); loadPickupList(); }
             } else if (data.role === 'individual') {
                 showMeetingView('meeting-individual');
+                const locDetails = document.getElementById('individual-location-details');
+                if (locDetails && data.locationName) {
+                    locDetails.innerHTML = `<strong>${data.locationName}</strong><br>${data.locationAddress || ''}`;
+                }
                 if (data.presenceConfirmed) {
                     const confEl = document.getElementById('individual-confirmed');
                     const btnEl = document.getElementById('btn-individual-confirm');
@@ -2884,16 +2880,7 @@
             const alertEl = document.getElementById('meeting-chat-alert');
             if (alertEl) alertEl.remove();
 
-            const views = [
-                'meeting-role-select',
-                'meeting-location-select',
-                'meeting-passenger-waiting',
-                'meeting-passenger-selected',
-                'meeting-driver-select',
-                'meeting-driver-route',
-                'meeting-driver-return',
-                'meeting-individual'
-            ];
+            const views = ['meeting-role-select', 'meeting-location-select', 'meeting-passenger-waiting', 'meeting-passenger-selected', 'meeting-driver-select', 'meeting-driver-route', 'meeting-driver-return', 'meeting-individual'];
             views.forEach(v => {
                 const el = document.getElementById(v);
                 if (el) el.classList.add('hidden');
@@ -2903,103 +2890,89 @@
         }
 
         // ── ROLE SELECTION ───────────────────────────────────────────────────────
-        function selectRole(role) {
-            if (!currentVendorUid) return;
+        async function selectRole(role) {
             currentMeetingRole = role;
-            // Mostra tela de seleção de local antes de confirmar
             showMeetingView('meeting-location-select');
-            loadLocationSelectList(role);
+            loadMeetingLocationsForSelection();
         }
 
-        function backToRoleSelect() {
-            currentMeetingRole = null;
-            showMeetingView('meeting-role-select');
-        }
+        async function loadMeetingLocationsForSelection() {
+            const container = document.getElementById('meeting-locations-suggestion-list');
+            container.innerHTML = '<div class="empty-state"><i data-lucide="map-pin"></i><p>Carregando...</p></div>';
+            lucide.createIcons();
 
-        function loadLocationSelectList(role) {
-            const list = document.getElementById('location-select-list');
-            list.innerHTML = '<div class="empty-state"><p>Carregando locais...</p></div>';
+            try {
+                // Tenta pegar a região do usuário (pode vir do perfil ou de uma variável global)
+                // Se não tiver, o loadAvailablePassengers já filtra depois pelo locationId salvo.
+                const userSnap = await firebase.database().ref(`usuarios/${currentVendorUid}`).once('value');
+                const userData = userSnap.val() || {};
+                const userRegion = userData.address?.cidade?.toLowerCase().includes('rio') ? 'RJ' : 'ES';
 
-            firebase.database().ref('meeting/locations').once('value').then(snap => {
-                const data = snap.val();
-                if (!data || Object.keys(data).length === 0) {
-                    list.innerHTML = '<div class="empty-state"><i data-lucide="map-pin-off"></i><p>Nenhum local disponível no momento.<br>Aguarde seu gestor cadastrar os locais.</p></div>';
+                const snap = await firebase.database().ref('meeting/locations').once('value');
+                const locations = snap.val() || {};
+                container.innerHTML = '';
+
+                // Filtra locais pela região do usuário (se o local tiver região definida)
+                const filtered = Object.entries(locations).filter(([id, loc]) => {
+                    if (!loc.region) return true; // Se não tem região, mostra pra todos
+                    return loc.region === userRegion;
+                });
+
+                if (filtered.length === 0) {
+                    container.innerHTML = `<div class="empty-state"><i data-lucide="info"></i><p>Nenhum local disponível para ${userRegion}.</p></div>`;
                     lucide.createIcons();
                     return;
                 }
 
-                list.innerHTML = '';
-                Object.entries(data).forEach(([id, loc]) => {
+                filtered.forEach(([id, loc]) => {
                     const div = document.createElement('div');
-                    div.className = 'meeting-role-card';
-                    div.style.marginBottom = '10px';
+                    div.style.cssText = 'background:var(--glass); border:1px solid var(--border); border-radius:12px; padding:16px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:all 0.2s;';
+                    div.onmouseover = () => div.style.borderColor = 'var(--gold)';
+                    div.onmouseout = () => div.style.borderColor = 'var(--border)';
+                    div.onclick = () => confirmMeetingLocation(id, loc);
                     div.innerHTML = `
-                    <div class="role-icon"><i data-lucide="map-pin"></i></div>
-                    <div class="role-info">
-                    <h3>${loc.name}</h3>
-                    <p>${loc.address || 'Endereço não informado'}</p>
-                    </div>
-                `;
-                    div.onclick = () => confirmRoleWithLocation(role, id, loc);
-                    list.appendChild(div);
+                        <div>
+                            <div style="font-weight:700; font-size:0.9rem;">${loc.name}</div>
+                            <div style="font-size:0.75rem; color:var(--muted); margin-top:4px;">${loc.address}</div>
+                        </div>
+                        <i data-lucide="chevron-right" style="color:var(--gold); width:18px;height:18px;"></i>
+                    `;
+                    container.appendChild(div);
                 });
                 lucide.createIcons();
-            });
+            } catch (e) {
+                container.innerHTML = `<p style="color:var(--danger); padding:20px;">Erro: ${e.message}</p>`;
+            }
         }
 
-        async function confirmRoleWithLocation(role, locationId, loc) {
-            meetingLocationData = { ...loc, id: locationId };
+        async function confirmMeetingLocation(locId, locData) {
+            if (!currentMeetingRole || !currentVendorUid) return;
 
             const participantData = {
                 uid: currentVendorUid,
                 name: currentVendorName,
-                role: role,
+                role: currentMeetingRole,
                 embarkStatus: 'waiting',
                 joinedAt: Date.now(),
-                locationId,
-                locationName: loc.name
+                locationId: locId,
+                locationName: locData.name,
+                locationAddress: locData.address
             };
 
             try {
-                // Se for passageiro
-                if (role === 'passenger') {
-                    await firebase.database().ref(`meeting/participants/${currentVendorUid}`).set({
-                        ...participantData,
-                        status: 'active',
-                        timestamp: Date.now()
-                    });
+                await firebase.database().ref(`meeting/participants/${currentVendorUid}`).set(participantData);
+                showToast(`Local confirmado: ${locData.name}`, 'success');
+
+                if (currentMeetingRole === 'passenger') {
                     showMeetingView('meeting-passenger-waiting');
-                    showToast('Aguardando motorista...', 'success');
-                }
-                // Se for motorista
-                else if (role === 'driver') {
-                    await firebase.database().ref(`meeting/participants/${currentVendorUid}`).set({
-                        ...participantData,
-                        phase: 'selecting',
-                        status: 'active',
-                        timestamp: Date.now()
-                    });
+                } else if (currentMeetingRole === 'driver') {
                     showMeetingView('meeting-driver-select');
                     loadAvailablePassengers();
-                }
-                // Se for individual
-                else if (role === 'individual') {
-                    await firebase.database().ref(`meeting/participants/${currentVendorUid}`).set({
-                        ...participantData,
-                        status: 'active',
-                        presenceConfirmed: false,
-                        timestamp: Date.now()
-                    });
+                } else if (currentMeetingRole === 'individual') {
                     showMeetingView('meeting-individual');
-
-                    // Atualiza detalhes do local na tela individual
-                    const individualDetails = document.getElementById('individual-location-details');
-                    if (individualDetails) {
-                        individualDetails.innerHTML = `<strong style="color:var(--text)">${loc.name}</strong><br><span>${loc.address || 'Endereço não informado'}</span>`;
-                    }
                 }
             } catch (e) {
-                showToast('Erro ao entrar: ' + e.message, 'error');
+                showToast('Erro ao confirmar local: ' + e.message, 'error');
             }
         }
 
@@ -3096,9 +3069,10 @@
             currentDriverUid = driverUid;
 
             // Escuta posição/nome do motorista
-            const dRef = firebase.database().ref(`vendedores/${currentDriverUid}`);
-            meetingListeners.push(dRef);
-            driverInfoListener = dRef.on('value', snap => {
+            if (driverInfoListener) {
+                firebase.database().ref(`vendedores/${currentDriverUid}`).off('value', driverInfoListener);
+            }
+            driverInfoListener = firebase.database().ref(`vendedores/${driverUid}`).on('value', snap => {
                 const d = snap.val();
                 if (!d) return;
                 document.getElementById('passenger-driver-name').textContent = 'Motorista: ' + (d.name || '');
@@ -3111,9 +3085,11 @@
                 }
             });
 
-            const sRef = firebase.database().ref(`meeting/participants/${currentVendorUid}`);
-            meetingListeners.push(sRef);
-            passengerStateListener = sRef.on('value', snap => {
+            // ✅ Listener em tempo real no próprio estado do carona
+            if (passengerStateListener) {
+                firebase.database().ref(`meeting/participants/${currentVendorUid}`).off('value', passengerStateListener);
+            }
+            passengerStateListener = firebase.database().ref(`meeting/participants/${currentVendorUid}`).on('value', snap => {
                 const data = snap.val();
                 if (!data) return; // removido pelo motorista → tratado por cancelPassengerWaiting
 
@@ -3190,68 +3166,60 @@
 
         // ── DRIVER FLOW ──────────────────────────────────────────────────────────
         let availablePassengersListener = null;
+
         async function loadAvailablePassengers() {
+            // Busca o locationId do motorista atual
+            const mySnap = await firebase.database().ref(`meeting/participants/${currentVendorUid}`).once('value');
+            const myLocationId = mySnap.val()?.locationId;
+
             const list = document.getElementById('available-passengers-list');
             list.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
 
-            // 1. Pega o locationId do motorista atual
-            const mySnap = await firebase.database().ref(`meeting/participants/${currentVendorUid}`).once('value');
-            const myData = mySnap.val();
-            const myLocationId = myData?.locationId;
-
-            if (!myLocationId) {
-                list.innerHTML = '<div class="empty-state"><i data-lucide="map-pin-off"></i><p>Local não definido. Volte e escolha um local.</p></div>';
-                lucide.createIcons();
-                return;
+            // Remove listener anterior se existir
+            if (availablePassengersListener) {
+                firebase.database().ref('meeting/participants').off('value', availablePassengersListener);
             }
 
-            // 2. Listener em tempo real com filtro de local
-            const pRef = firebase.database().ref('meeting/participants');
-            meetingListeners.push(pRef);
-            availablePassengersListener = pRef.on('value', snap => {
+            availablePassengersListener = firebase.database().ref('meeting/participants').on('value', snap => {
                 const all = snap.val();
-
-                // ✅ Filtra apenas caronas do MESMO local
-                const waiting = all ? Object.values(all).filter(p =>
-                    p.role === 'passenger' &&
-                    p.embarkStatus === 'waiting' &&
-                    p.uid !== currentVendorUid &&
-                    p.locationId === myLocationId   // ← FILTRO ESSENCIAL
-                ) : [];
+                const waiting = all
+                    ? Object.values(all).filter(p =>
+                        p.role === 'passenger' &&
+                        p.embarkStatus === 'waiting' &&
+                        p.uid !== currentVendorUid &&
+                        p.locationId === myLocationId
+                    )
+                    : [];
 
                 list.innerHTML = '';
 
                 if (waiting.length === 0) {
-                    list.innerHTML = `
-        <div class="empty-state">
-          <i data-lucide="users"></i>
-          <p>Nenhum vendedor aguardando carona<br>para este local de reunião.</p>
-        </div>`;
+                    list.innerHTML = `<div class="empty-state">
+        <i data-lucide="users"></i>
+        <p>Nenhum vendedor aguardando carona no momento.</p>
+      </div>`;
                     lucide.createIcons();
                     return;
                 }
 
-                const prevSelected = selectedPassengers.map(p => p.uid);
                 waiting.forEach(p => {
-                    const isSelected = prevSelected.includes(p.uid);
+                    const isSelected = selectedPassengers.some(s => s.uid === p.uid);
                     const div = document.createElement('div');
-                    div.className = `driver-item${isSelected ? ' selected' : ''}`;
+                    div.className = 'driver-item' + (isSelected ? ' selected' : '');
                     div.id = `passenger-select-${p.uid}`;
                     div.innerHTML = `
         <div>
           <div class="d-name">${p.name}</div>
-          <div class="d-sub">
-            <i data-lucide="map-pin" style="display:inline;width:11px;height:11px"></i>
-            ${p.locationName || 'Local não informado'}
-          </div>
+          <div class="d-sub">Aguardando carona</div>
         </div>
-        <i data-lucide="${isSelected ? 'check-circle' : 'circle'}" 
-           class="d-check" id="check-${p.uid}" 
+        <i data-lucide="${isSelected ? 'check-circle' : 'circle'}"
+           class="d-check" id="check-${p.uid}"
            style="opacity:${isSelected ? 1 : 0.2}"></i>
       `;
                     div.onclick = () => togglePassengerSelection(p);
                     list.appendChild(div);
                 });
+
                 lucide.createIcons();
             });
         }
@@ -3309,67 +3277,27 @@
             showToast('Rota iniciada! Convites enviados.', 'success');
         }
 
-        async function cancelDriver() {
-            if (!currentVendorUid) return;
-
-            // Desativa o botão imediatamente para evitar cliques múltiplos
-            const btns = document.querySelectorAll('.action-btn.danger');
-            btns.forEach(b => b.disabled = true);
-
-            try {
-                // 1. Remove o participante do Firebase
-                await firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
-
-                // 2. Remove os pickups do motorista (se existirem)
-                await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
-
-                // 3. Notifica passageiros selecionados que a rota foi cancelada
-                if (selectedPassengers && selectedPassengers.length > 0) {
-                    for (const p of selectedPassengers) {
-                        try {
-                            await firebase.database().ref(`meeting/participants/${p.uid}`).update({
-                                embarkStatus: 'waiting',
-                                driverUid: null
-                            });
-                            await firebase.database().ref(`meeting/notifications/${p.uid}`).set({
-                                type: 'driverCancelled',
-                                driverName: currentVendorName,
-                                handled: false,
-                                timestamp: Date.now()
-                            });
-                        } catch (e) { console.error('Erro notificando passageiro:', e); }
-                    }
-                }
-            } catch (e) {
-                console.error('Erro ao cancelar:', e);
+        function cancelDriver() {
+            // Para o listener de caronas disponíveis
+            if (availablePassengersListener) {
+                firebase.database().ref('meeting/participants').off('value', availablePassengersListener);
+                availablePassengersListener = null;
             }
-
-            // 4. Limpa todos os estados locais
             currentMeetingRole = null;
             selectedPassengers = [];
-            meetingLocationData = null;
-
-            // 5. Desliga todos os listeners ativos de reunião
-            if (Array.isArray(meetingListeners)) {
-                meetingListeners.forEach(ref => {
-                    try { ref.off(); } catch (e) { }
-                });
-            }
-            meetingListeners = [];
-
-            // 6. Volta para a tela inicial de uma vez
+            firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
             showMeetingView('meeting-role-select');
-            showToast('Participação cancelada.', 'success');
-
-            // 7. Reabilita os botões
-            btns.forEach(b => b.disabled = false);
         }
 
         function loadPickupList() {
             // Remove listener anterior
-            const pkRef = firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`);
-            meetingListeners.push(pkRef);
-            pickupListListener = pkRef.on('value', snap => {
+            if (pickupListListener) {
+                firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).off('value', pickupListListener);
+            }
+
+            const container = document.getElementById('driver-pickup-list');
+
+            pickupListListener = firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).on('value', snap => {
                 const raw = snap.val();
                 if (!raw) {
                     container.innerHTML = '';
@@ -3654,9 +3582,13 @@
             document.getElementById('meeting-chat-messages').innerHTML = '';
             document.getElementById('meeting-chat-input').value = '';
 
-            const cRef = firebase.database().ref(`meeting/chats/${roomKey}`);
-            meetingListeners.push(cRef);
-            meetingChatListener = cRef.on('value', snap => {
+            // Remove listener anterior
+            if (meetingChatListener) {
+                firebase.database().ref(`meeting/chats/${roomKey}`).off('value', meetingChatListener);
+            }
+
+            // Escuta mensagens em tempo real
+            meetingChatListener = firebase.database().ref(`meeting/chats/${roomKey}`).on('value', snap => {
                 const msgs = snap.val();
                 const container = document.getElementById('meeting-chat-messages');
                 container.innerHTML = '';
@@ -3727,9 +3659,7 @@
             const today = new Date().toISOString().split('T')[0];
             const roomKey = today + '_' + [currentVendorUid, partnerUid].sort().join('_');
 
-            const nRef = firebase.database().ref(`meeting/chats/${roomKey}`);
-            meetingListeners.push(nRef);
-            nRef.on('value', snap => {
+            firebase.database().ref(`meeting/chats/${roomKey}`).on('value', snap => {
                 const msgs = snap.val();
                 if (!msgs) return;
 
@@ -3853,23 +3783,50 @@
         window.onload = () => {
             lucide.createIcons();
             const splashEl = document.getElementById('auth-splash');
-            const bNav = document.querySelector('.bottom-nav');
-            
-            // Esconde nav bar inicialmente
-            if (bNav) bNav.style.display = 'none';
-
             firebase.auth().onAuthStateChanged(user => {
                 if (splashEl) splashEl.style.display = 'none';
-                if (user) { 
-                    enterApp(user.uid); 
-                } else { 
+                const bNav = document.querySelector('.bottom-nav');
+                if (user) {
+                    if (bNav) bNav.style.display = 'flex';
+                    enterApp(user.uid);
+                } else {
+                    if (bNav) bNav.style.display = 'none'; // esconde no login
                     document.getElementById('screen-login').style.display = 'flex';
-                    if (bNav) bNav.style.display = 'none';
                 }
             });
         };
         async function cancelDriverRoute() {
-            await cancelDriver();
+            if (selectedPassengers && selectedPassengers.length > 0) {
+                for (const p of selectedPassengers) {
+                    // Reseta status do carona para "waiting" (aparece novamente na lista)
+                    await firebase.database().ref(`meeting/participants/${p.uid}`).update({
+                        embarkStatus: 'waiting',
+                        driverUid: null
+                    });
+                    // Envia notificação de cancelamento para o carona
+                    await firebase.database().ref(`meeting/notifications/${p.uid}`).set({
+                        type: 'driverCancelled',
+                        driverName: currentVendorName,
+                        handled: false,
+                        timestamp: Date.now()
+                    });
+                    await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}/${p.uid}`).remove();
+                }
+            }
+
+            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
+            await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
+
+            if (passengersListener) {
+                firebase.database().ref('meeting/participants').off('value', passengersListener);
+                passengersListener = null;
+            }
+
+            currentMeetingRole = null;
+            selectedPassengers = [];
+
+            showMeetingView('meeting-role-select');
+            showToast('Rota cancelada. Voltando ao menu.', 'error');
         }
 
         // ===== SAUDAÇÃO DINÂMICA =====
