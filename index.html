@@ -2016,6 +2016,25 @@
                 </div>
             </div>
 
+            <!-- TELA 0.5 - Seleção de Local de Reunião -->
+            <div id="meeting-location-select" class="hidden">
+              <div style="margin-bottom:16px">
+                <div class="section-title" style="margin-bottom:4px">LOCAL DA REUNIÃO</div>
+                <div style="font-size:0.78rem;color:var(--muted);line-height:1.5">
+                  Escolha o local onde acontecerá sua reunião de hoje.
+                </div>
+              </div>
+              <div id="location-select-list">
+                <div class="empty-state">
+                  <i data-lucide="loader"></i>
+                  <p>Carregando locais...</p>
+                </div>
+              </div>
+              <button class="action-btn danger" style="margin-top:8px" onclick="backToRoleSelect()">
+                <i data-lucide="x"></i> Voltar
+              </button>
+            </div>
+
             <!-- TELA 1A: CARONA - Aguardando motorista -->
             <div id="meeting-passenger-waiting" class="hidden">
                 <div style="text-align:center; padding: 20px 0 30px;">
@@ -2451,7 +2470,7 @@
             initVendedorMap();
             listenForRoute(uid);
             listenForMeetingNotifications(uid);
-            listenForMeetingLocation();
+            // listenForMeetingLocation();
 
             firebase.database().ref(`typing/${uid}/admin`).on('value', s => {
                 document.getElementById('vendor-typing').style.display = s.val() ? 'block' : 'none';
@@ -2846,7 +2865,16 @@
             const alertEl = document.getElementById('meeting-chat-alert');
             if (alertEl) alertEl.remove();
 
-            const views = ['meeting-role-select', 'meeting-passenger-waiting', 'meeting-passenger-selected', 'meeting-driver-select', 'meeting-driver-route', 'meeting-driver-return', 'meeting-individual'];
+            const views = [
+                'meeting-role-select',
+                'meeting-location-select',
+                'meeting-passenger-waiting',
+                'meeting-passenger-selected',
+                'meeting-driver-select',
+                'meeting-driver-route',
+                'meeting-driver-return',
+                'meeting-individual'
+            ];
             views.forEach(v => {
                 const el = document.getElementById(v);
                 if (el) el.classList.add('hidden');
@@ -2856,27 +2884,100 @@
         }
 
         // ── ROLE SELECTION ───────────────────────────────────────────────────────
-        async function selectRole(role) {
+        function selectRole(role) {
+            if (!currentVendorUid) return;
+            currentMeetingRole = role;
+            // Mostra tela de seleção de local antes de confirmar
+            showMeetingView('meeting-location-select');
+            loadLocationSelectList(role);
+        }
+
+        function backToRoleSelect() {
+            currentMeetingRole = null;
+            showMeetingView('meeting-role-select');
+        }
+
+        function loadLocationSelectList(role) {
+            const list = document.getElementById('location-select-list');
+            list.innerHTML = '<div class="empty-state"><p>Carregando locais...</p></div>';
+
+            firebase.database().ref('meeting/locations').once('value').then(snap => {
+                const data = snap.val();
+                if (!data || Object.keys(data).length === 0) {
+                    list.innerHTML = '<div class="empty-state"><i data-lucide="map-pin-off"></i><p>Nenhum local disponível no momento.<br>Aguarde seu gestor cadastrar os locais.</p></div>';
+                    lucide.createIcons();
+                    return;
+                }
+
+                list.innerHTML = '';
+                Object.entries(data).forEach(([id, loc]) => {
+                    const div = document.createElement('div');
+                    div.className = 'meeting-role-card';
+                    div.style.marginBottom = '10px';
+                    div.innerHTML = `
+                    <div class="role-icon"><i data-lucide="map-pin"></i></div>
+                    <div class="role-info">
+                    <h3>${loc.name}</h3>
+                    <p>${loc.address || 'Endereço não informado'}</p>
+                    </div>
+                `;
+                    div.onclick = () => confirmRoleWithLocation(role, id, loc);
+                    list.appendChild(div);
+                });
+                lucide.createIcons();
+            });
+        }
+
+        async function confirmRoleWithLocation(role, locationId, loc) {
+            meetingLocationData = { ...loc, id: locationId };
+
             const participantData = {
                 uid: currentVendorUid,
                 name: currentVendorName,
                 role: role,
                 embarkStatus: 'waiting',
-                joinedAt: Date.now()
+                joinedAt: Date.now(),
+                locationId,
+                locationName: loc.name
             };
 
             try {
-                await firebase.database().ref(`meeting/participants/${currentVendorUid}`).set(participantData);
-
-                currentMeetingRole = role;
+                // Se for passageiro
                 if (role === 'passenger') {
+                    await firebase.database().ref(`meeting/participants/${currentVendorUid}`).set({
+                        ...participantData,
+                        status: 'active',
+                        timestamp: Date.now()
+                    });
                     showMeetingView('meeting-passenger-waiting');
                     showToast('Aguardando motorista...', 'success');
-                } else if (role === 'driver') {
+                }
+                // Se for motorista
+                else if (role === 'driver') {
+                    await firebase.database().ref(`meeting/participants/${currentVendorUid}`).set({
+                        ...participantData,
+                        phase: 'selecting',
+                        status: 'active',
+                        timestamp: Date.now()
+                    });
                     showMeetingView('meeting-driver-select');
                     loadAvailablePassengers();
-                } else if (role === 'individual') {
+                }
+                // Se for individual
+                else if (role === 'individual') {
+                    await firebase.database().ref(`meeting/participants/${currentVendorUid}`).set({
+                        ...participantData,
+                        status: 'active',
+                        presenceConfirmed: false,
+                        timestamp: Date.now()
+                    });
                     showMeetingView('meeting-individual');
+
+                    // Atualiza detalhes do local na tela individual
+                    const individualDetails = document.getElementById('individual-location-details');
+                    if (individualDetails) {
+                        individualDetails.innerHTML = `<strong style="color:var(--text)">${loc.name}</strong><br><span>${loc.address || 'Endereço não informado'}</span>`;
+                    }
                 }
             } catch (e) {
                 showToast('Erro ao entrar: ' + e.message, 'error');
