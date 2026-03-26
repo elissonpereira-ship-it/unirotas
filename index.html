@@ -2984,6 +2984,11 @@
         async function confirmMeetingLocation(locId, locData) {
             if (!currentMeetingRole || !currentVendorUid) return;
 
+            if (locData.lat === undefined || locData.lng === undefined) {
+                showToast('Este local não possui coordenadas. Peça ao gestor para atualizar o cadastro.', 'error');
+                return;
+            }
+
             const participantData = {
                 uid: currentVendorUid,
                 name: currentVendorName,
