@@ -2374,6 +2374,20 @@
 
             <!-- TELA 2: MOTORISTA - Selecionar caronas -->
             <div id="meeting-driver-select" class="hidden">
+                <!-- SELETOR DE VEÍCULO -->
+                <div class="meeting-card" style="margin-bottom:12px; padding:16px;">
+                    <div style="font-size:0.72rem;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Meu Veículo</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <label id="vehicle-opt-carro" style="display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;border:2px solid var(--gold);background:rgba(191,154,86,0.12);cursor:pointer;">
+                            <input type="radio" name="vehicle-type" value="carro" checked style="accent-color:var(--gold);" onchange="driverVehicleType='carro';document.getElementById('vehicle-opt-carro').style.borderColor='var(--gold)';document.getElementById('vehicle-opt-moto').style.borderColor='var(--border)';">
+                            <span style="font-size:0.9rem;">🚗 Carro <span style="font-size:0.7rem;opacity:0.6;">R$0,90/km</span></span>
+                        </label>
+                        <label id="vehicle-opt-moto" style="display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;border:2px solid var(--border);cursor:pointer;">
+                            <input type="radio" name="vehicle-type" value="moto" style="accent-color:var(--gold);" onchange="driverVehicleType='moto';document.getElementById('vehicle-opt-moto').style.borderColor='var(--gold)';document.getElementById('vehicle-opt-carro').style.borderColor='var(--border)';">
+                            <span style="font-size:0.9rem;">🏍️ Moto <span style="font-size:0.7rem;opacity:0.6;">R$0,40/km</span></span>
+                        </label>
+                    </div>
+                </div>
                 <div class="info-banner">
                     <i data-lucide="info"></i>
                     <div class="info-banner-text">
@@ -2572,27 +2586,19 @@
     <!-- SCRIPTS -->
     <script
         src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAO46S-g-tbXDg9aljUNajplLQV_3i7c9Q&libraries=places,geometry"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../scripts/supabase-shim.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
     <script>
         emailjs.init({ publicKey: "OV-1JMg752txxJaSr" });
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyD3Mh2iQev84QtQJ96TCdOXS5UFn_OpNAg",
-            authDomain: "unirotas-e9e9c.firebaseapp.com",
-            projectId: "unirotas-e9e9c",
-            storageBucket: "unirotas-e9e9c.firebasestorage.app",
-            messagingSenderId: "698279255356",
-            appId: "1:698279255356:web:8bda755ad6368bb291d239",
-            databaseURL: "https://unirotas-e9e9c-default-rtdb.firebaseio.com"
-        };
-        if (typeof firebase !== 'undefined') firebase.initializeApp(firebaseConfig);
+        // Supabase: configuração feita no supabase-shim.js
 
         // ── GLOBALS ──────────────────────────────────────────────────────────────
         let isTracking = false, watchId = null;
+        let driverRealRoute = []; // Acumula pontos GPS reais durante a viagem
+        let driverVehicleType = 'carro'; // 'carro' ou 'moto'
         let lastLat = 0, lastLon = 0, lastTime = 0;
         let vMap = null, vDirectionsRenderer = null, vDirectionsService = null;
         let currentRoute = [], currentVendorName = '', currentVendorUid = '';
@@ -2857,7 +2863,7 @@
         async function handleLogout() {
             const user = firebase.auth().currentUser;
             if (user) {
-                await firebase.database().ref('vendedores/' + user.uid).update({ status: 'Offline', lastActive: firebase.database.ServerValue.TIMESTAMP });
+                await firebase.database().ref('vendedores/' + user.uid).update({ status: 'Offline', lastActive: Date.now() });
                 // Clear meeting status on logout
                 await firebase.database().ref(`meeting/participants/${user.uid}`).remove();
             }
@@ -2883,8 +2889,8 @@
             document.getElementById('sidebar-user-name').textContent = currentVendorName;
             document.getElementById('sidebar-user-cpf').textContent = data.cpf ? `CPF: ${data.cpf}` : 'ID Ativo';
 
-            firebase.database().ref('vendedores/' + uid).onDisconnect().update({ status: 'Offline', lastActive: firebase.database.ServerValue.TIMESTAMP });
-            firebase.database().ref('vendedores/' + uid).update({ status: 'Online', name: currentVendorName, lastActive: firebase.database.ServerValue.TIMESTAMP });
+            firebase.database().ref('vendedores/' + uid).onDisconnect().update({ status: 'Offline' });
+            firebase.database().ref('vendedores/' + uid).update({ status: 'Online', name: currentVendorName, lastActive: Date.now() });
 
             initVendedorMap();
             listenForRoute(uid);
@@ -2931,7 +2937,7 @@
                 document.getElementById('coords-text').textContent = `GPS: ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
                 document.getElementById('accuracy-warning').classList.toggle('hidden', accuracy < 50);
                 const user = firebase.auth().currentUser;
-                if (user) firebase.database().ref('vendedores/' + user.uid).update({ lat, lon, lastActive: firebase.database.ServerValue.TIMESTAMP });
+                if (user) firebase.database().ref('vendedores/' + user.uid).update({ lat, lon, lastActive: Date.now() });
                 updateQuickCards();
 
                 // ✅ Atualiza status do botão de presença universal
@@ -3809,10 +3815,51 @@
         async function startDriverRoute() {
             if (selectedPassengers.length === 0) return;
 
-            for (const p of selectedPassengers) {
-                if (p.uid === currentVendorUid) continue; // ✅ Defesa: não notifica a si mesmo
+            // ── Grava ponto de início da rota ────────────────────────────────
+            driverRealRoute = []; // Reset route
+            if (lastLat && lastLon) {
+                driverRealRoute.push({ type: 'start', lat: lastLat, lng: lastLon, label: 'Início da viagem', timestamp: Date.now() });
+            }
 
-                // Notifica carona para ACEITAR A VIAGEM (não o embarque)
+            // ── Gera rota prevista a partir dos passageiros selecionados ─────
+            const predictedRoute = [];
+            if (lastLat && lastLon) predictedRoute.push({ lat: lastLat, lng: lastLon, label: 'Casa do motorista' });
+            for (const p of selectedPassengers) {
+                if (p.uid === currentVendorUid) continue;
+                // Endereço do passageiro - usa lat/lng se disponível
+                const pSnap = await firebase.database().ref(`meeting/participants/${p.uid}`).once('value');
+                const pd = pSnap.val();
+                if (pd && pd.lat && pd.lng) predictedRoute.push({ lat: pd.lat, lng: pd.lng, label: `🔵 ${p.name}` });
+                else if (p.address) predictedRoute.push({ lat: null, lng: null, label: `🔵 ${p.name} (${p.address})` });
+            }
+            if (meetingLocationData) predictedRoute.push({ lat: meetingLocationData.lat, lng: meetingLocationData.lng, label: '📍 ' + (meetingLocationData.name || 'Reunião') });
+            // Retorno - mesmos passageiros em ordem reversa
+            for (const p of [...selectedPassengers].reverse()) {
+                if (p.uid === currentVendorUid) continue;
+                const pSnap = await firebase.database().ref(`meeting/participants/${p.uid}`).once('value');
+                const pd = pSnap.val();
+                if (pd && pd.lat && pd.lng) predictedRoute.push({ lat: pd.lat, lng: pd.lng, label: `🟡 ${p.name} (retorno)` });
+            }
+            if (lastLat && lastLon) predictedRoute.push({ lat: lastLat, lng: lastLon, label: 'Casa do motorista (volta)' });
+
+            // Salva rota prevista e veículo nos participantes
+            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({
+                vehicle_type: driverVehicleType
+            });
+
+            // Salva no history para o gestor visualizar depois
+            const meetDate = new Date().toISOString().split('T')[0];
+            await firebase.database().ref(`meeting/history/${meetDate}/${currentVendorUid}`).set({
+                driverName: currentVendorName,
+                driverUid: currentVendorUid,
+                vehicleType: driverVehicleType,
+                predictedRoute: predictedRoute.filter(p => p.lat !== null),
+                startedAt: Date.now(),
+                date: meetDate
+            });
+
+            for (const p of selectedPassengers) {
+                if (p.uid === currentVendorUid) continue;
                 await firebase.database().ref(`meeting/notifications/${p.uid}`).set({
                     type: 'pickup_request',
                     driverUid: currentVendorUid,
@@ -3822,12 +3869,12 @@
                 });
                 await firebase.database().ref(`meeting/participants/${p.uid}`).update({
                     driverUid: currentVendorUid,
-                    embarkStatus: 'invitePending' // ← novo status: convite enviado, aguardando resposta
+                    embarkStatus: 'invitePending'
                 });
                 await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}/${p.uid}`).set({
                     uid: p.uid,
                     name: p.name,
-                    status: 'invitePending', // ← aguardando aceite
+                    status: 'invitePending',
                     order: selectedPassengers.indexOf(p)
                 });
             }
@@ -3935,12 +3982,14 @@
 
         async function driverPickedUp(passengerUid, passengerName) {
             try {
-                // Muda status para "motorista chegou, aguardando confirmação do carona"
+                // ── Grava ponto GPS de embarque ──────────────────────────────
+                if (lastLat && lastLon) {
+                    driverRealRoute.push({ type: 'pickup', lat: lastLat, lng: lastLon, label: `🔵 ${passengerName} embarcou`, timestamp: Date.now() });
+                }
+
                 await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}/${passengerUid}`).update({
                     status: 'boarding_pending'
                 });
-
-                // Dispara notificação de EMBARQUE para o carona confirmar fisicamente
                 await firebase.database().ref(`meeting/notifications/${passengerUid}`).set({
                     type: 'boardingrequest',
                     driverUid: currentVendorUid,
@@ -3948,7 +3997,6 @@
                     handled: false,
                     timestamp: Date.now()
                 });
-
                 showToast(`Notificação de embarque enviada para ${passengerName}.`, 'success');
             } catch (e) {
                 showToast('Erro: ' + e.message, 'error');
@@ -4052,6 +4100,9 @@
             const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
             if (dist > 150) { showToast(`Muito longe do local (${Math.round(dist)}m). Aproxime-se.`, 'error'); return; }
             try {
+                // ── Grava ponto GPS de chegada à reunião ─────────────────────────
+                driverRealRoute.push({ type: 'meeting', lat: lastLat, lng: lastLon, label: '📍 Chegada à reunião', timestamp: Date.now() });
+
                 const today = new Date().toISOString().split('T')[0];
                 await firebase.database().ref(`meeting/attendance/${today}/${currentVendorUid}`).set({
                     name: currentVendorName,
@@ -4145,6 +4196,10 @@
         }
 
         async function driverDropOff(passengerUid, passengerName) {
+            // ── Grava ponto GPS de desembarque ────────────────────────────────
+            if (lastLat && lastLon) {
+                driverRealRoute.push({ type: 'dropoff', lat: lastLat, lng: lastLon, label: `🟡 ${passengerName} desembarcou`, timestamp: Date.now() });
+            }
             await firebase.database().ref(`meeting/notifications/${passengerUid}`).set({
                 type: 'dropoff_request',
                 driverUid: currentVendorUid,
@@ -4157,23 +4212,29 @@
         }
 
         async function driverArrivedHome() {
+            // ── Grava ponto GPS de chegada em casa ───────────────────────────
+            if (lastLat && lastLon) {
+                driverRealRoute.push({ type: 'end', lat: lastLat, lng: lastLon, label: '🏠 Chegou em casa', timestamp: Date.now() });
+            }
+
             const meetDate = new Date().toISOString().split('T')[0];
-            // Save complete trip to history
             const snap = await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
             const pickups = snap.val() || {};
-            await firebase.database().ref(`meeting/history/${meetDate}/${currentVendorUid}`).set({
+
+            // Salva histórico completo com rota real e tipo de veículo
+            await firebase.database().ref(`meeting/history/${meetDate}/${currentVendorUid}`).update({
                 driverName: currentVendorName,
                 driverUid: currentVendorUid,
                 passengers: pickups,
+                vehicleType: driverVehicleType,
+                realRoute: driverRealRoute,
                 completedAt: Date.now(),
                 date: meetDate
             });
-            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({
-                status: 'finished',
-                phase: 'done'
-            });
+            await firebase.database().ref(`meeting/participants/${currentVendorUid}`).update({ status: 'finished', phase: 'done' });
             await firebase.database().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
             showToast('Reunião finalizada! Dados salvos.', 'success');
+            driverRealRoute = []; // Reset
             selectedPassengers = [];
             showMeetingView('meeting-role-select');
         }
@@ -4241,7 +4302,7 @@
             const text = input.value.trim(); if (!text) return;
             const user = firebase.auth().currentUser; if (!user) return;
             firebase.database().ref(`typing/${user.uid}/vendor`).set(false);
-            await firebase.database().ref('mensagens/' + user.uid).push({ sender: 'vendor', text, timestamp: firebase.database.ServerValue.TIMESTAMP, read: false });
+            await firebase.database().ref('mensagens/' + user.uid).push({ sender: 'vendor', text, timestamp: Date.now(), read: false });
             input.value = '';
         }
 
@@ -4317,7 +4378,7 @@
                 senderUid: currentVendorUid,
                 senderName: currentVendorName,
                 text,
-                timestamp: firebase.database.ServerValue.TIMESTAMP
+                timestamp: Date.now()
             });
             input.value = '';
         }
@@ -4486,7 +4547,7 @@
 
         function logAudit(type) {
             const user = firebase.auth().currentUser; if (!user) return;
-            firebase.database().ref('audit_logs/' + user.uid).push({ type, timestamp: firebase.database.ServerValue.TIMESTAMP, lat: lastLat, lng: lastLon });
+            firebase.database().ref('audit_logs/' + user.uid).push({ type, timestamp: Date.now(), lat: lastLat, lng: lastLon });
         }
 
         function openInGoogleMaps(destLat, destLng) {
