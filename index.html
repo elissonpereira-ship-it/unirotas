@@ -2310,14 +2310,28 @@
                         <i data-lucide="clock"></i>
                     </div>
                     <div class="status-v2-title">Aguardando Motorista</div>
-                    <div class="status-v2-subtitle">
-                        Um motorista irá selecioná-lo em breve. Mantenha o app aberto.
+                    <div class="status-v2-subtitle" id="passenger-waiting-subtitle">
+                        Mantenha o app aberto para ser selecionado.
                     </div>
                 </div>
-                <button class="action-btn danger" onclick="cancelPassengerWaiting()">
+
+                <div id="passenger-embark-card" class="meeting-card" style="margin-top:20px;">
+                    <div style="font-size:0.75rem; color:var(--gold); font-weight:700; margin-bottom:8px; text-transform:uppercase;">Seu Local de Embarque</div>
+                    <p style="font-size:0.82rem; color:var(--muted); line-height:1.4;">Confirme onde você está agora para que o motorista possa te buscar.</p>
+                    <button id="btn-passenger-confirm-location" class="action-btn gold" style="margin-top:12px;" onclick="passengerConfirmEmbarkLocation()">
+                        <i data-lucide="map-pin"></i> Confirmar Este Local para Embarque
+                    </button>
+                    <div id="passenger-embark-confirmed-msg" class="hidden" style="margin-top:12px; padding:10px; background:rgba(16,185,129,0.1); border-radius:8px; display:flex; align-items:center; gap:8px;">
+                        <i data-lucide="check-circle" style="color:var(--success); width:18px;"></i>
+                        <span style="font-size:0.82rem; color:var(--success); font-weight:600;">Local Confirmado! Aguarde aqui.</span>
+                    </div>
+                </div>
+
+                <button class="action-btn danger" style="margin-top:20px;" onclick="cancelPassengerWaiting()">
                     <i data-lucide="x"></i> Cancelar / Voltar
                 </button>
             </div>
+
 
             <!-- TELA 1B: CARONA - Motorista selecionou -->
             <div id="meeting-passenger-selected" class="hidden">
@@ -2340,10 +2354,40 @@
                         </div>
                     </div>
                     <div id="passenger-embark-status"
-                        style="text-align:center; padding:10px 0; font-size:0.9rem; color:var(--muted);">
+                        style="text-align:center; padding:10px 0; font-size:1.1rem; font-weight:600; color:var(--gold);">
                         Acompanhe o deslocamento pelo mapa.
                     </div>
                 </div>
+
+                <!-- NOTIFICACAO DE SOLICITACAO DE EMBARQUE -->
+                <div id="passenger-boarding-card" class="meeting-card hidden" style="border: 2px solid var(--gold); background: rgba(191,154,86,0.1); margin-top:20px;">
+                    <h3 style="color:var(--gold); display:flex; align-items:center; gap:8px;">
+                        <i data-lucide="check-circle"></i> Confirmar Embarque
+                    </h3>
+                    <p style="font-size:0.88rem; margin:10px 0;">O motorista chegou! Você já embarcou no veículo?</p>
+                    <button class="action-btn success" onclick="passengerConfirmBoarding()">
+                        SIM, CONFIRMAR EMBARQUE
+                    </button>
+                    <p style="font-size:0.7rem; color:var(--muted); margin-top:8px; text-align:center;">Só confirme se você já estiver dentro do carro.</p>
+                </div>
+
+
+                <!-- NOTIFICACAO DE RETORNO PARA O CARONA -->
+                <div id="passenger-return-card" class="meeting-card hidden" style="border: 2px solid var(--gold); background: rgba(191,154,86,0.1);">
+                    <h3 style="color:var(--gold); display:flex; align-items:center; gap:8px;">
+                        <i data-lucide="home"></i> Solicitação de Retorno
+                    </h3>
+                    <p style="font-size:0.88rem; margin:10px 0;">O motorista iniciou o retorno. Você vai voltar com ele?</p>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                        <button class="action-btn success" onclick="passengerAcceptReturn(true)">
+                            Aceitar
+                        </button>
+                        <button class="action-btn danger" onclick="passengerAcceptReturn(false)">
+                            Recusar
+                        </button>
+                    </div>
+                </div>
+
 
                 <button id="btn-passenger-confirm-presence" class="action-btn gold hidden"
                     onclick="passengerConfirmPresence()">
@@ -2449,7 +2493,8 @@
                         <h3 style="margin:0">LISTA DE EMBARQUE</h3>
                         <div id="driver-chat-wrap" style="display:none;"></div>
                     </div>
-                    <div id="driver-pickup-list"></div>
+                    <div id="driver-pickup-list" style="margin-top:10px;"></div>
+
                 </div>
 
                 <!-- BOTOES DE AÇÃO -->
@@ -2491,7 +2536,8 @@
 
                 <div class="meeting-card">
                     <h3>ORDEM DE DESEMBARQUE</h3>
-                    <div id="driver-dropoff-list"></div>
+                    <div id="driver-dropoff-list" style="margin-top:10px;"></div>
+
                 </div>
                 <button id="btn-driver-arrived-home" class="action-btn success hidden" onclick="driverArrivedHome()">
                     <i data-lucide="home"></i> Finalizar: Cheguei em Casa
@@ -2621,7 +2667,9 @@
                     joinedAt: row.joined_at ? new Date(row.joined_at).getTime() : null, locationId: row.location_id,
                     locationName: row.location_name, locationAddress: row.location_address, region: row.region,
                     lat: row.lat, lng: row.lng, phase: row.phase, presenceConfirmed: row.presence_confirmed,
-                    driverUid: row.driver_uid, driverName: row.driver_name, status: row.status, passengers: row.passengers };
+                    driverUid: row.driver_uid, driverName: row.driver_name, status: row.status, passengers: row.passengers,
+                    embarkLat: row.embark_lat, embarkLng: row.embark_lng, returnStatus: row.return_status || 'none' };
+
             }
             function _denormPart(d) {
                 const r = {};
@@ -2641,6 +2689,10 @@
                 if (d.driverName !== undefined) r.driver_name = d.driverName;
                 if (d.status !== undefined) r.status = d.status;
                 if (d.passengers !== undefined) r.passengers = d.passengers;
+                if (d.embarkLat !== undefined) r.embark_lat = d.embarkLat;
+                if (d.embarkLng !== undefined) r.embark_lng = d.embarkLng;
+                if (d.returnStatus !== undefined) r.return_status = d.returnStatus;
+
                 return r;
             }
             function _normPickup(row) {
@@ -2877,10 +2929,22 @@
         // ── TOAST ────────────────────────────────────────────────────────────────
         function showToast(msg, type = '') {
             const t = document.getElementById('toast');
-            t.textContent = msg;
-            t.className = 'show ' + type;
-            setTimeout(() => { t.className = ''; }, 3500);
+            if (t) {
+                t.textContent = msg;
+                t.className = 'show ' + type;
+                setTimeout(() => { t.className = ''; }, 3500);
+            }
         }
+
+        function showLoading(show) {
+            // Se houver um loader global, muda visibilidade. 
+            // Senão, mostramos no Log do console.
+            const loader = document.getElementById('loader-wrapper') || document.getElementById('global-loader');
+            if (loader) {
+                loader.style.display = show ? 'flex' : 'none';
+            }
+        }
+
 
         // ── SIDEBAR ──────────────────────────────────────────────────────────────
         function openSidebar() {
@@ -3108,7 +3172,60 @@
             }
         });
 
+        // ──────────────────────────────────────────────────────────────────
+        //  NOTIFICAÇÕES DE REUNIÃO (MISSING FIX)
+        // ──────────────────────────────────────────────────────────────────
+        function listenForMeetingNotifications(uid) {
+            console.log(`[Meeting] Escutando notificações para ${uid}`);
+            supabase.database().ref(`meeting/notifications/${uid}`).on('value', snap => {
+                const data = snap.val();
+                if (!data || data.handled) return;
+
+                console.log(`[Meeting] Nova notificação recebida:`, data.type);
+
+                if (data.type === 'inviteAccepted') {
+                    showToast(`O motorista ${data.driverName || 'UniRotas'} aceitou sua carona!`, 'success');
+                    loadMeetingScreen();
+                } else if (data.type === 'driverCancelled') {
+                    showToast(`O motorista ${data.driverName || 'UniRotas'} cancelou a rota.`, 'error');
+                    loadMeetingScreen();
+                } else if (data.type === 'boardingrequest') {
+                    showToast('O motorista está solicitando seu embarque!', 'info');
+                    document.getElementById('passenger-boarding-card')?.classList.remove('hidden');
+                } else if (data.type === 'boarded') {
+                    showToast('Embarque confirmado!', 'success');
+                    loadMeetingScreen();
+                } else if (data.type === 'returnConfirm') {
+                    showToast('O motorista enviou solicitação de retorno!', 'info');
+                    document.getElementById('passenger-return-card')?.classList.remove('hidden');
+                } else if (data.type === 'noShow') {
+                    showToast('O motorista marcou você como ausente. Rota cancelada.', 'error');
+                    loadMeetingScreen();
+                } else if (data.type === 'dropoff_confirmed') {
+                    showToast('Você desembarcou com sucesso!', 'success');
+                    loadMeetingScreen();
+                }
+
+
+
+                // Marcar como processada para não repetir
+                supabase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
+            });
+        }
+
+        function listenForMeetingLocation() {
+            // Monitora se o gestor alterou o local da reunião ativa (opcional para UX em tempo real)
+            supabase.database().ref('meeting/config/activeLocation').on('value', snap => {
+                const active = snap.val();
+                if (active && active.name) {
+                    const badge = document.getElementById('meeting-location-name');
+                    if (badge) badge.textContent = active.name;
+                }
+            });
+        }
+
         // ── ENTER APP ────────────────────────────────────────────────────────────
+
         async function enterApp(uid) {
             currentVendorUid = uid;
             const screenLogin = document.getElementById('screen-login');
@@ -3394,7 +3511,15 @@ function loadMeetingScreen() {
         .then(snap => {
             const data = snap.val();
             if (data && data.role && data.status !== 'finished' && data.phase !== 'done') {
+                if (data.role === 'passenger') {
+                    // Se estiver com solicitação de retorno aberta
+                    if (data.returnStatus === 'pending') {
+                        const card = document.getElementById('passenger-return-card');
+                        if (card) card.classList.remove('hidden');
+                    }
+                }
                 if (!data.locationId) {
+
                     selectRole(data.role);
                 } else {
                     restoreMeetingState(data);
@@ -3758,8 +3883,21 @@ function restoreMeetingState(data) {
                     const isBoarded = p.status === 'boarded';
                     const isAccepted = p.status === 'accepted_ride';
                     const div = document.createElement('div');
-                    div.style.cssText = 'background:var(--surface2); padding:14px; border-radius:12px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;';
-                    div.innerHTML = `<div style="flex:1;"><div style="font-weight:600;">${p.name}</div><div style="display:flex; gap:8px; margin-top:6px;"><button class="btn-chat-small" onclick="openMeetingChat('${p.uid}','${p.name}')" id="dot-chat-${p.uid}" style="background:var(--glass); border:1px solid var(--border); padding:4px 10px; border-radius:6px; font-size:0.7rem; color:var(--text); cursor:pointer;">💬 Chat</button>${!isBoarded && isAccepted ? `<button onclick="driverRequestBoarding('${p.uid}','${p.name}')" style="background:var(--gold); border:none; padding:4px 10px; border-radius:6px; font-size:0.7rem; color:var(--bg); font-weight:700; cursor:pointer;">Solicitar Embarque</button>` : ''}</div></div><div style="text-align:right;"><span style="font-size:0.65rem; padding:4px 8px; border-radius:4px; font-weight:700; background:${isBoarded ? 'rgba(16,185,129,0.1)' : 'rgba(191,154,86,0.1)'}; color:${isBoarded ? 'var(--success)' : 'var(--gold)'};">${isBoarded ? 'A BORDO' : 'PENDENTE'}</span></div>`;
+                    div.innerHTML = `
+                        <div style="flex:1;">
+                            <div style="font-weight:700; font-size:1rem; margin-bottom:4px;">${p.name}</div>
+                            <div style="font-size:0.72rem; color:var(--muted); margin-bottom:8px;">${p.address || 'Localização confirmada'}</div>
+                            <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                                <button class="btn-chat-small" onclick="openMeetingChat('${p.uid}','${p.name}')" id="dot-chat-${p.uid}" style="background:var(--surface); border:1px solid var(--border); padding:8px 12px; border-radius:8px; font-size:0.75rem; color:var(--text); cursor:pointer; display:flex; align-items:center; gap:4px;">💬 Chat</button>
+                                ${!isBoarded && isAccepted ? `
+                                    <button onclick="driverRequestBoarding('${p.uid}','${p.name}')" style="background:var(--gold); border:none; padding:8px 12px; border-radius:8px; font-size:0.75rem; color:var(--bg); font-weight:700; cursor:pointer;">EMBARQUE</button>
+                                    <button onclick="driverMarkNoShow('${p.uid}')" style="background:rgba(239,68,68,0.1); border:1px solid var(--danger); padding:8px 12px; border-radius:8px; font-size:0.75rem; color:var(--danger); cursor:pointer;">Furo / Ausente</button>
+                                ` : ''}
+                                ${isBoarded ? `<div style="background:rgba(16,185,129,0.1); color:var(--success); border-radius:8px; padding:6px 12px; font-size:0.75rem; font-weight:700;">✓ EMBARCADO</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+
                     container.appendChild(div);
                     listenForMeetingChatMessages(p.uid);
                 });
@@ -3818,45 +3956,67 @@ function restoreMeetingState(data) {
         }
 
 
-        async function endMeeting() {
-            try {
-                await supabase.database().ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'return' });
-                const snap = await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
-                const pickups = Object.values(snap.val() || {}).filter(p => p.status === 'boarded');
-                for (const p of pickups) {
-                    await supabase.database().ref(`meeting/notifications/${p.uid}`).set({ type: 'return_started', driverUid: currentVendorUid, driverName: currentVendorName, handled: false, timestamp: Date.now() });
-                }
-                showMeetingView('meeting-driver-return');
-                loadDropoffList();
-            } catch (e) { showToast('Erro ao encerrar: ' + e.message, 'error'); }
-        }
-
         async function loadDropoffList() {
             const container = document.getElementById('driver-dropoff-list');
             if (!container) return;
-            const snap = await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
-            const pickups = Object.values(snap.val() || {}).filter(p => p.status === 'boarded' || p.status === 'finished');
-            if (pickups.length === 0) {
-                container.innerHTML = '<div class="empty-state"><p>Todos entregues.</p></div>';
-                document.getElementById('btn-driver-arrived-home')?.classList.remove('hidden');
-                return;
-            }
-            container.innerHTML = '';
-            pickups.forEach(p => {
-                const isFinished = p.status === 'finished';
-                const div = document.createElement('div');
-                div.style.cssText = 'background:var(--surface2); padding:14px; border-radius:12px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;';
-                div.innerHTML = `<div><div style="font-weight:600;">${p.name}</div></div>${!isFinished ? `<button onclick="driverRequestDropOff('${p.uid}','${p.name}')" style="background:var(--gold); border:none; padding:8px 14px; border-radius:8px; font-size:0.75rem; color:var(--bg); font-weight:700; cursor:pointer;">Confirmar Desembarque</button>` : '<span style="color:var(--success); font-weight:700; font-size:0.75rem;">ENTREGUE ✓</span>'}`;
-                container.appendChild(div);
+
+            if (dropoffListListener) supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).off('value', dropoffListListener);
+            dropoffListListener = supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).on('value', async snap => {
+                const pickupsMap = snap.val() || {};
+                const pickups = Object.values(pickupsMap);
+                
+                container.innerHTML = pickups.length ? '' : '<div class="empty-state"><p>Nenhum passageiro para retorno.</p></div>';
+
+                for (const p of pickups) {
+                    // Busca status de retorno no participants
+                    const pSnap = await supabase.database().ref(`meeting/participants/${p.uid}`).once('value');
+                    const pData = pSnap.val() || {};
+                    const returnStatus = pData.returnStatus || 'pending';
+                    const isDropped = p.status === 'finished' || p.dropoffStatus === 'dropped_off';
+
+                    const div = document.createElement('div');
+                    div.style.cssText = 'background:var(--surface2); padding:16px; border-radius:12px; margin-bottom:10px; border-left: 4px solid var(--gold);';
+                    
+                    let statusLabel = '<span style="color:var(--muted)">AGUARDANDO...</span>';
+                    if (returnStatus === 'accepted') statusLabel = '<span style="color:var(--success); font-weight:700;">✓ ACEITOU</span>';
+                    if (returnStatus === 'declined') statusLabel = '<span style="color:var(--danger); font-weight:700;">✗ RECUSOU</span>';
+                    if (isDropped) statusLabel = '<span style="color:var(--success); font-weight:700;">✓ DESEMBARCADO</span>';
+
+                    div.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <div style="font-weight:700; font-size:1rem;">${p.name}</div>
+                            <div style="font-size:0.75rem;">${statusLabel}</div>
+                        </div>
+                        ${returnStatus === 'accepted' && !isDropped ? `
+                            <button onclick="confirmDropoff('${p.uid}','${p.name}')" class="action-btn success" style="padding:10px; font-size:0.85rem;">
+                                <i data-lucide="log-out" style="width:16px;"></i> DESEMBARCAR AGORA
+                            </button>
+                        ` : ''}
+                    `;
+                    container.appendChild(div);
+                }
+                lucide.createIcons({ root: container });
+                
+                // Mostrar botão de "Cheguei em casa" se todos estiverem desembarcados ou recusaram
+                const snapP = await supabase.database().ref(`meeting/participants/${currentVendorUid}`).once('value');
+                const pData = snapP.val();
+                if (pData && (pData.phase === 'return' || pData.phase === 'return_pending')) {
+                    const allDone = pickups.every(p => p.status === 'finished' || p.dropoffStatus === 'dropped_off');
+                    if (allDone && pickups.length > 0) {
+                         document.getElementById('btn-driver-arrived-home')?.classList.remove('hidden');
+                    }
+                }
             });
-            if (pickups.every(p => p.status === 'finished')) document.getElementById('btn-driver-arrived-home')?.classList.remove('hidden');
         }
 
-        async function driverRequestDropOff(pUid, pName) {
+        async function confirmDropoff(pUid, pName) {
             try {
-                await supabase.database().ref(`meeting/notifications/${pUid}`).set({ type: 'dropoff_request', driverUid: currentVendorUid, driverName: currentVendorName, handled: false, timestamp: Date.now() });
-                showToast(`Solicitado desembarque para ${pName}.`, 'success');
+                showLoading(true);
+                await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}/${pUid}`).update({ status: 'finished', dropoffStatus: 'dropped_off' });
+                await supabase.database().ref(`meeting/notifications/${pUid}`).set({ type: 'dropoff_confirmed', driverName: currentVendorName, handled: false, timestamp: Date.now() });
+                showToast(`Desembarque de ${pName} confirmado!`, 'success');
             } catch (e) { showToast('Erro: ' + e.message, 'error'); }
+            finally { showLoading(false); }
         }
 
         async function driverArrivedHome() {
@@ -3952,14 +4112,46 @@ function restoreMeetingState(data) {
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         }
 
-        function showConfirmDialog(title, html, onConfirm) {
-            if (typeof showNotification === 'function') showNotification('gold', 'help-circle', title, html, onConfirm, () => {});
-            else if(confirm(title + "\n\n" + html.replace(/<[^>]*>?/gm, ''))) onConfirm();
+        function showConfirmDialog(title, message) {
+            return new Promise(resolve => {
+                if (confirm(`${title}\n\n${message}`)) {
+                    resolve(true);
+                } else {
+                    resolve(false);
+                }
+            });
         }
 
 
 
+
+        async function MeetingHardReset() {
+            // Limpa listeners ativos para evitar vazamento de memória e conflitos
+            if (passengersListener) {
+                supabase.database().ref('meeting/participants').off('value', passengersListener);
+                passengersListener = null;
+            }
+            if (driverInfoListener) {
+                if (currentDriverUid) supabase.database().ref(`vendedores/${currentDriverUid}`).off('value', driverInfoListener);
+                driverInfoListener = null;
+            }
+            if (meetingChatListener) {
+                supabase.database().ref('meeting/chats').off();
+                meetingChatListener = null;
+            }
+
+            // Reseta variáveis globais
+            currentMeetingRole = null;
+            selectedPassengers = [];
+            driverRealRoute = [];
+            meetingLocationData = null;
+            currentDriverUid = null;
+            
+            console.log('[Meeting] Estado resetado com sucesso.');
+        }
+
         supportListListener = null;
+
         function initSupportMessageListener(uid) {
             const badge = document.getElementById('badge-support');
             if (supportListListener) supabase.database().ref(`mensagens/${uid}`).off('value', supportListListener);
@@ -4068,41 +4260,339 @@ function restoreMeetingState(data) {
                 }
             });
         };
-        async function cancelDriverRoute() {
-            if (selectedPassengers && selectedPassengers.length > 0) {
-                for (const p of selectedPassengers) {
-                    // Reseta status do carona para "waiting" (aparece novamente na lista)
-                    await supabase.database().ref(`meeting/participants/${p.uid}`).update({
-                        embarkStatus: 'waiting',
-                        driverUid: null
-                    });
-                    // Envia notificação de cancelamento para o carona
-                    await supabase.database().ref(`meeting/notifications/${p.uid}`).set({
-                        type: 'driverCancelled',
+        async function cancelDriver() {
+            const confirmed = await showConfirmDialog('Deseja realmente cancelar esta rota? Isso notificará os caronas.');
+            if (!confirmed) return;
+
+            showLoading(true);
+            try {
+                // Se selectedPassengers estiver vazio (pós load), tenta buscar do banco
+                if (!selectedPassengers || selectedPassengers.length === 0) {
+                    const snap = await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
+                    const data = snap.val() || {};
+                    selectedPassengers = Object.entries(data).map(([uid, p]) => ({ uid, name: p.passenger_name }));
+                }
+
+                if (selectedPassengers && selectedPassengers.length > 0) {
+                    for (const p of selectedPassengers) {
+                        // Reseta status do carona para "waiting" (aparece novamente na lista)
+                        await supabase.database().ref(`meeting/participants/${p.uid}`).update({
+                            embarkStatus: 'waiting',
+                            driverUid: null
+                        });
+                        // Envia notificação de cancelamento para o carona
+                        await supabase.database().ref(`meeting/notifications/${p.uid}`).set({
+                            type: 'driverCancelled',
+                            driverName: currentVendorName,
+                            handled: false,
+                            timestamp: Date.now()
+                        });
+                        await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}/${p.uid}`).remove();
+                    }
+                }
+
+                await supabase.database().ref(`meeting/participants/${currentVendorUid}`).update({
+                    status: 'idle',
+                    phase: 'idle',
+                    driverUid: null,
+                    embarkStatus: 'waiting'
+                });
+                
+                await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
+
+                if (passengersListener) {
+                    supabase.database().ref('meeting/participants').off('value', passengersListener);
+                    passengersListener = null;
+                }
+
+                currentMeetingRole = null;
+                selectedPassengers = [];
+
+                showMeetingView('meeting-role-select');
+                showToast('Rota cancelada. Voltando ao menu.', 'error');
+            } catch (e) {
+                showToast('Erro ao cancelar: ' + e.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+
+        async function passengerConfirmBoarding() {
+            try {
+                showLoading(true);
+                await supabase.database().ref(`meeting/participants/${currentVendorUid}`).update({ embarkStatus: 'boarded' });
+                await supabase.database().ref(`meeting/driverPickups/${currentDriverUid}/${currentVendorUid}`).update({ status: 'boarded' });
+                await supabase.database().ref(`meeting/notifications/${currentDriverUid}`).set({
+                    type: 'boarded',
+                    senderName: currentVendorName,
+                    handled: false,
+                    timestamp: Date.now()
+                });
+                
+                document.getElementById('passenger-boarding-card')?.classList.add('hidden');
+                showToast('Embarque confirmado!', 'success');
+                loadMeetingScreen();
+            } catch (e) {
+                showToast('Erro ao confirmar embarque: ' + e.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function openDriverMapRoute(isReturn = false) {
+             let destLat, destLng, waypoints = [];
+             
+             if (!isReturn) {
+                 // IDA: Ponto inicial -> Caronas -> Local Reunião
+                 if (!meetingLocationData) return;
+                 destLat = meetingLocationData.lat;
+                 destLng = meetingLocationData.lng;
+                 
+                 const snap = await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
+                 const data = snap.val() || {};
+                 // Só adiciona os que confiraram local de embarque E ainda não embarcaram
+                 for (const pUid in data) {
+                     const pSnap = await supabase.database().ref(`meeting/participants/${pUid}`).once('value');
+                     const p = pSnap.val();
+                     if (p && p.embarkStatus !== 'boarded' && (p.embarkLat || p.lat)) {
+                         waypoints.push(`${p.embarkLat || p.lat},${p.embarkLng || p.lng}`);
+                     }
+                 }
+             } else {
+                 // VOLTA: Local Reunião -> Caronas que Aceitaram -> Minha Casa
+                 const userSnap = await supabase.database().ref(`usuarios/${currentVendorUid}`).once('value');
+                 const userData = userSnap.val() || {};
+                 // Tenta pegar coordenadas da casa do motorista (simulado aqui)
+                 destLat = userData.lat || -20.00; 
+                 destLng = userData.lng || -40.00;
+                 
+                 const snap = await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
+                 const data = snap.val() || {};
+                 for (const pUid in data) {
+                     if (data[pUid].status === 'finished') continue; // Já desembarcou
+                     const pSnap = await supabase.database().ref(`meeting/participants/${pUid}`).once('value');
+                     const pData = pSnap.val();
+                     if (pData && pData.returnStatus === 'accepted') {
+                          waypoints.push(`${pData.embarkLat || pData.lat},${pData.embarkLng || pData.lng}`);
+                     }
+                 }
+             }
+
+             const origin = `${lastLat},${lastLon}`;
+             let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destLat},${destLng}`;
+             if (waypoints.length > 0) {
+                 url += `&waypoints=${waypoints.join('|')}`;
+             }
+             url += `&travelmode=driving`;
+             
+             window.open(url, '_blank');
+             showToast('Direcionando ao Google Maps...', 'info');
+        }
+
+        // ── NOVO FLUXO: CARONA CONFIRMA LOCAL DE EMBARQUE ────────────────
+
+        async function passengerConfirmEmbarkLocation() {
+            if (!lastLat || !lastLon) {
+                showToast('Aguardando sinal do GPS...', 'error');
+                return;
+            }
+            try {
+                showLoading(true);
+                // Salva no registro do participante
+                await supabase.database().ref(`meeting/participants/${currentVendorUid}`).update({
+                    embarkLat: lastLat,
+                    embarkLng: lastLon,
+                    embarkStatus: 'waiting_location'
+                });
+                
+                document.getElementById('btn-passenger-confirm-location').classList.add('hidden');
+                document.getElementById('passenger-embark-confirmed-msg').classList.remove('hidden');
+                document.getElementById('passenger-waiting-subtitle').textContent = 'Local de embarque confirmado! Por favor, aguarde EXATAMENTE neste local.';
+                
+                showToast('Local de embarque salvo!', 'success');
+            } catch (e) {
+                showToast('Erro ao salvar local: ' + e.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // ── NOVO FLUXO: MOTORISTA MARCA "FURO" (NO-SHOW) ────────────────
+        async function driverMarkNoShow(pUid) {
+            const confirmed = await showConfirmDialog('Confirmar Furo?', 'Este passageiro não apareceu? Isso removerá ele da sua rota atual.');
+            if (!confirmed) return;
+            
+            try {
+                showLoading(true);
+                // Notifica o carona
+                await supabase.database().ref(`meeting/notifications/${pUid}`).set({
+                    type: 'noShow',
+                    driverName: currentVendorName,
+                    handled: false,
+                    timestamp: Date.now()
+                });
+                
+                // Reseta ele e remove do motorista
+                await supabase.database().ref(`meeting/participants/${pUid}`).update({
+                    driverUid: null,
+                    embarkStatus: 'waiting',
+                    phase: 'no_show'
+                });
+                
+                await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}/${pUid}`).remove();
+                
+                showToast('Passageiro removido da rota.', 'info');
+                logAudit('NoShow', { passengerUid: pUid });
+            } catch (e) {
+                showToast('Erro: ' + e.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // ── NOVO FLUXO: SOLICITAÇÃO DE RETORNO ─────────────────────────
+        let returnTimerId = null;
+        async function endMeeting() {
+            const confirmed = await showConfirmDialog('Encerrar Reunião?', 'Deseja iniciar o processo de retorno agora?');
+            if (!confirmed) return;
+
+            try {
+                showLoading(true);
+                await supabase.database().ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'return_pending' });
+                
+                // Pega os caronas que o motorista levou
+                const snap = await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
+                const pickups = snap.val() || {};
+                
+                // Envia solicitação de retorno para todos os caronas embarcados
+                for (const pUid in pickups) {
+                    await supabase.database().ref(`meeting/participants/${pUid}`).update({ returnStatus: 'pending' });
+                    await supabase.database().ref(`meeting/notifications/${pUid}`).set({
+                        type: 'returnConfirm',
                         driverName: currentVendorName,
                         handled: false,
                         timestamp: Date.now()
                     });
-                    await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}/${p.uid}`).remove();
                 }
+                
+                showToast('Solicitações de retorno enviadas!', 'success');
+                showMeetingView('meeting-driver-return');
+                loadDropoffList();
+                
+                // Inicia countdown de 5 minutos (Sugestão Gemini)
+                startReturnCountdown();
+
+            } catch (e) {
+                showToast('Erro: ' + e.message, 'error');
+            } finally {
+                showLoading(false);
             }
-
-            await supabase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
-            await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
-
-            if (passengersListener) {
-                supabase.database().ref('meeting/participants').off('value', passengersListener);
-                passengersListener = null;
-            }
-
-            currentMeetingRole = null;
-            selectedPassengers = [];
-
-            showMeetingView('meeting-role-select');
-            showToast('Rota cancelada. Voltando ao menu.', 'error');
         }
 
-        // ===== SAUDAÇÃO DINÂMICA =====
+        function startReturnCountdown() {
+            if (returnTimerId) clearTimeout(returnTimerId);
+            
+            const msg = document.createElement('div');
+            msg.id = 'return-countdown-banner';
+            msg.style.cssText = 'background:var(--gold); color:var(--bg); padding:10px; border-radius:8px; margin-bottom:12px; font-weight:700; text-align:center; font-size:0.85rem;';
+            msg.innerHTML = '⏱️ Aguardando confirmações (5 min). <button onclick="startReturnRouteNow()" style="background:white; border:none; padding:4px 8px; border-radius:4px; font-size:0.65rem; color:black; font-weight:700; margin-left:8px; cursor:pointer;">INICIAR AGORA</button>';
+            
+            const dropoffContainer = document.getElementById('driver-dropoff-list');
+            if (dropoffContainer) {
+                const old = document.getElementById('return-countdown-banner');
+                if (old) old.remove();
+                dropoffContainer.prepend(msg);
+            }
+
+            returnTimerId = setTimeout(() => {
+                showToast('Tempo de espera esgotado. Iniciando retorno.', 'info');
+                startReturnRouteNow();
+            }, 300000); 
+        }
+
+        async function passengerAcceptReturn(accepted) {
+            try {
+                showLoading(true);
+                await supabase.database().ref(`meeting/participants/${currentVendorUid}`).update({ 
+                    returnStatus: accepted ? 'accepted' : 'declined' 
+                });
+                
+                document.getElementById('passenger-return-card').classList.add('hidden');
+                showToast(accepted ? 'Retorno confirmado!' : 'Retorno recusado.', accepted ? 'success' : 'info');
+            } catch (e) {
+                showToast('Erro: ' + e.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function startReturnRouteNow() {
+            if (returnTimerId) clearTimeout(returnTimerId);
+            const banner = document.getElementById('return-countdown-banner');
+            if (banner) banner.remove();
+
+            const snap = await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
+            const pickups = snap.val() || {};
+            
+            for (const pUid in pickups) {
+                const pSnap = await supabase.database().ref(`meeting/participants/${pUid}`).once('value');
+                const pData = pSnap.val();
+                if (!pData || pData.returnStatus !== 'accepted') {
+                    await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}/${pUid}`).remove();
+                }
+            }
+            
+            await supabase.database().ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'return' });
+            showToast('Trajeto de retorno iniciado!', 'success');
+            openDriverMapRoute(true);
+        }
+
+        async function driverArrivedHome() {
+            const snap = await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
+            const data = snap.val() || {};
+            const stillBoarded = Object.values(data).filter(p => p.dropoffStatus !== 'dropped_off');
+            
+            if (stillBoarded.length > 0) {
+                const proceed = await showConfirmDialog('Desembarque Pendente', `Ainda existem ${stillBoarded.length} passageiros a bordo. Finalizar agora?`);
+                if (!proceed) return;
+            }
+
+            showLoading(true);
+            try {
+                await driverSaveTripToHistory();
+                await MeetingHardReset();
+                await supabase.database().ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'done', status: 'finished' });
+                
+                showToast('Viagem concluída! Bom descanso.', 'success');
+                showMeetingView('meeting-role-select');
+            } catch (e) {
+                showToast('Erro ao finalizar: ' + e.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function driverSaveTripToHistory() {
+             // Lógica de cálculo final e salvamento no supabase
+             const today = new Date().toISOString().split('T')[0];
+             const snap = await supabase.database().ref(`vendedores/${currentVendorUid}`).once('value');
+             const vData = snap.val() || {};
+             
+             // Otimização: calcular distância agora do que gravamos no trajeto
+             const totalKm = (meetingTrail || []).length * 0.1; // Simulação ou cálculo real
+             const rate = driverVehicleType === 'moto' ? 0.4 : 0.9;
+             const reimbursement = totalKm * rate;
+
+             await supabase.database().ref(`meeting/history/${today}/${currentVendorUid}`).set({
+                 driverName: currentVendorName,
+                 vehicleType: driverVehicleType,
+                 totalKm,
+                 reimbursement,
+                 realRoute: meetingTrail || []
+             });
+        }
+
         function updateGreeting() {
             const h = new Date().getHours();
             const greet = h < 12 ? 'Bom dia ☀️' : h < 18 ? 'Boa tarde 🌤️' : 'Boa noite 🌙';
