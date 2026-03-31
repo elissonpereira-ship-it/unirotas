@@ -2708,12 +2708,21 @@
                     const {data} = await q('meeting_driver_pickups').select('*').eq('driver_uid',p[2]);
                     return _toMap(data,'passenger_uid',_normPickup);
                 }
-                if (p[0]==='meeting'&&p[1]==='history'&&p.length===3) {
-                    const {data} = await q('meeting_history').select('*').eq('date',p[2]);
-                    const res={};
-                    (data||[]).forEach(r=>{ res[r.driver_uid]={driverName:r.driver_name,driverUid:r.driver_uid,passengers:r.passengers,vehicleType:r.vehicle_type||'carro',realRoute:r.real_route||[],predictedRoute:r.predicted_route||[]}; });
-                    return Object.keys(res).length ? res : null;
+                if (p[0]==='meeting'&&p[1]==='history') {
+                    if (p.length===3) {
+                        const {data} = await q('meeting_history').select('*').eq('date',p[2]);
+                        const res={};
+                        (data||[]).forEach(r=>{ res[r.driver_uid]={driverName:r.driver_name,driverUid:r.driver_uid,passengers:r.passengers,vehicleType:r.vehicle_type||'carro',realRoute:r.real_route||[],predictedRoute:r.predicted_route||[],totalKm:r.total_km||0,reimbursement:r.reimbursement||0}; });
+                        return Object.keys(res).length ? res : null;
+                    }
+                    if (p.length===4) {
+                        const {data,error} = await q('meeting_history').select('*').eq('date',p[2]).eq('driver_uid',p[3]).single();
+                        if (error||!data) return null;
+                        return {driverName:data.driver_name,driverUid:data.driver_uid,passengers:data.passengers,vehicleType:data.vehicle_type||'carro',realRoute:data.real_route||[],predictedRoute:data.predicted_route||[],totalKm:data.total_km||0,reimbursement:data.reimbursement||0};
+                    }
                 }
+
+
                 if (p[0]==='meeting'&&p[1]==='chats'&&p.length===3) {
                     const {data} = await q('meeting_chats').select('*').eq('room_key',p[2]).order('ts');
                     return _toMap(data,'id',r=>({senderUid:r.sender_uid,senderName:r.sender_name,text:r.content,timestamp:new Date(r.ts).getTime()}));
@@ -2732,9 +2741,10 @@
                 else if (p[0]==='meeting'&&p[1]==='notifications'&&p.length===3) { await q('meeting_notifications').delete().eq('vendor_uid',p[2]).eq('handled',false); res = await q('meeting_notifications').insert({vendor_uid:p[2],type:data.type,data,handled:data.handled||false}); }
                 else if (p[0]==='meeting'&&p[1]==='driverPickups'&&p.length===4) res = await q('meeting_driver_pickups').upsert({driver_uid:p[2],passenger_uid:p[3],passenger_name:data.name,status:data.status,sort_order:data.order||0},{onConflict:'driver_uid,passenger_uid'});
                 else if (p[0]==='meeting'&&p[1]==='attendance'&&p.length===4) res = await q('meeting_attendance').upsert({date:p[2],vendor_uid:p[3],name:data.name,role:data.role,driver_uid:data.driverUid||null,location_id:data.locationId,location_name:data.locationName,region:data.region||'',confirmed_at:now},{onConflict:'date,vendor_uid'});
-                else if (p[0]==='meeting'&&p[1]==='chats'&&p.length===3) res = await q('meeting_chats').insert({room_key:p[2],sender_uid:data.senderUid,sender_name:data.senderName,content:data.text,ts:now});
+                else if (p[0]==='meeting'&&p[1]==='history'&&p.length===4) res = await q('meeting_history').upsert({date:p[2],driver_uid:p[3],driver_name:data.driverName,passengers:data.passengers||null,vehicle_type:data.vehicleType||'carro',real_route:data.realRoute||null,predicted_route:data.predictedRoute||null,total_km:data.totalKm||0,reimbursement:data.reimbursement||0,completed_at:now,ts:now},{onConflict:'date,driver_uid'});
                 return res;
             }
+
 
             const _activeSubs = {};
             function _subscribe(path, cb) {
