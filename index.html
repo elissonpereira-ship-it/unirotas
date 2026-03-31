@@ -2594,7 +2594,174 @@
     <script
         src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAO46S-g-tbXDg9aljUNajplLQV_3i7c9Q&libraries=places,geometry"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="../scripts/supabase-shim.js"></script>
+    <script>
+        /* UniRotas – Supabase Data & Auth Driver (Compatibility Layer - INLINED) */
+        (function() {
+            const _SUPA_URL = 'https://ajconwarkeunpixqngnq.supabase.co';
+            const _SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFqY29ud2Fya2V1bnBpeHFuZ25xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4OTQ2MDksImV4cCI6MjA5MDQ3MDYwOX0.HFHmApPMYKT_GZLJwDAY8IZSaM38CjVUN1amAah4wZM';
+            const _sb = window.supabase.createClient(_SUPA_URL, _SUPA_KEY);
+
+            function _toMap(arr, key, fn) {
+                if (!arr || !arr.length) return null;
+                const r = {};
+                arr.forEach(row => { r[row[key]] = fn ? fn(row) : row; });
+                return r;
+            }
+            function _normPart(row) {
+                if (!row) return null;
+                return { uid: row.vendor_uid, name: row.name, role: row.role, embarkStatus: row.embark_status,
+                    joinedAt: row.joined_at ? new Date(row.joined_at).getTime() : null, locationId: row.location_id,
+                    locationName: row.location_name, locationAddress: row.location_address, region: row.region,
+                    lat: row.lat, lng: row.lng, phase: row.phase, presenceConfirmed: row.presence_confirmed,
+                    driverUid: row.driver_uid, driverName: row.driver_name, status: row.status, passengers: row.passengers };
+            }
+            function _denormPart(d) {
+                const r = {};
+                if (d.uid !== undefined) r.vendor_uid = d.uid;
+                if (d.name !== undefined) r.name = d.name;
+                if (d.role !== undefined) r.role = d.role;
+                if (d.embarkStatus !== undefined) r.embark_status = d.embarkStatus;
+                if (d.locationId !== undefined) r.location_id = d.locationId;
+                if (d.locationName !== undefined) r.location_name = d.locationName;
+                if (d.locationAddress !== undefined) r.location_address = d.locationAddress;
+                if (d.region !== undefined) r.region = d.region;
+                if (d.lat !== undefined) r.lat = d.lat;
+                if (d.lng !== undefined) r.lng = d.lng;
+                if (d.phase !== undefined) r.phase = d.phase;
+                if (d.presenceConfirmed !== undefined) r.presence_confirmed = d.presenceConfirmed;
+                if (d.driverUid !== undefined) r.driver_uid = d.driverUid;
+                if (d.driverName !== undefined) r.driver_name = d.driverName;
+                if (d.status !== undefined) r.status = d.status;
+                if (d.passengers !== undefined) r.passengers = d.passengers;
+                return r;
+            }
+            function _normPickup(row) {
+                return { uid: row.passenger_uid, name: row.passenger_name, address: row.passenger_address,
+                    status: row.status, dropoffStatus: row.dropoff_status, order: row.sort_order };
+            }
+
+            async function _readPath(path) {
+                const p = path.split('/').filter(Boolean);
+                const q = (t) => _sb.from(t);
+                if (p[0]==='vendedores' && p.length===1) { const {data} = await q('vendedores').select('*'); return _toMap(data,'uid'); }
+                if (p[0]==='vendedores' && p.length===2) { const {data,error} = await q('vendedores').select('*').eq('uid',p[1]).single(); return error ? null : data; }
+                if (p[0]==='usuarios' && p.length===1) { const {data} = await q('usuarios').select('*'); return _toMap(data,'uid'); }
+                if (p[0]==='usuarios' && p.length===2) { const {data,error} = await q('usuarios').select('*').eq('uid',p[1]).single(); return error ? null : data; }
+                if (p[0]==='mensagens' && p.length===1) {
+                    const {data} = await q('mensagens').select('*').order('ts');
+                    if (!data) return {};
+                    return data.reduce((acc, r) => {
+                        if (!acc[r.vendor_uid]) acc[r.vendor_uid] = {};
+                        acc[r.vendor_uid][r.id] = {sender:r.sender,text:r.content,timestamp:new Date(r.ts).getTime(),read:r.read};
+                        return acc;
+                    }, {});
+                }
+                if (p[0]==='mensagens' && p.length===2) {
+                    const {data} = await q('mensagens').select('*').eq('vendor_uid',p[1]).order('ts');
+                    return _toMap(data,'id', r=>({sender:r.sender,text:r.content,timestamp:new Date(r.ts).getTime(),read:r.read}));
+                }
+                if (p[0]==='typing' && p.length===3) {
+                    const {data} = await q('typing_status').select('*').eq('vendor_uid',p[1]).single();
+                    if (!data) return false;
+                    return p[2]==='admin' ? (data.admin_typing||false) : (data.vendor_typing||false);
+                }
+                if (p[0]==='routes' && p.length===2) {
+                    const {data} = await q('routes').select('*').eq('vendor_uid',p[1]).order('created_at',{ascending:false}).limit(1);
+                    if (!data||!data.length) return null;
+                    return {waypoints:data[0].waypoints, optimized:data[0].optimized};
+                }
+                if (path==='meeting/config/activeLocation') {
+                    const {data} = await q('meeting_config').select('value').eq('key','activeLocation').single();
+                    return data?.value ?? null;
+                }
+                if (path==='meeting/locations') {
+                    const {data} = await q('meeting_locations').select('*');
+                    return _toMap(data,'id');
+                }
+                if (p[0]==='meeting'&&p[1]==='locations'&&p.length===3) {
+                    const {data,error} = await q('meeting_locations').select('*').eq('id',p[2]).single();
+                    return error ? null : data;
+                }
+                if (path==='meeting/participants') {
+                    const {data} = await q('meeting_participants').select('*');
+                    return _toMap(data,'vendor_uid',_normPart);
+                }
+                if (p[0]==='meeting'&&p[1]==='participants'&&p.length===3) {
+                    const {data,error} = await q('meeting_participants').select('*').eq('vendor_uid',p[2]).single();
+                    return error ? null : _normPart(data);
+                }
+                if (p[0]==='meeting'&&p[1]==='notifications'&&p.length===3) {
+                    const {data} = await q('meeting_notifications').select('*').eq('vendor_uid',p[2]).eq('handled',false).order('created_at',{ascending:false}).limit(1);
+                    if (!data||!data.length) return null;
+                    const row=data[0];
+                    return {...(row.data||{}),type:row.type,handled:row.handled,_id:row.id};
+                }
+                if (p[0]==='meeting'&&p[1]==='driverPickups'&&p.length===3) {
+                    const {data} = await q('meeting_driver_pickups').select('*').eq('driver_uid',p[2]);
+                    return _toMap(data,'passenger_uid',_normPickup);
+                }
+                if (p[0]==='meeting'&&p[1]==='history'&&p.length===3) {
+                    const {data} = await q('meeting_history').select('*').eq('date',p[2]);
+                    const res={};
+                    (data||[]).forEach(r=>{ res[r.driver_uid]={driverName:r.driver_name,driverUid:r.driver_uid,passengers:r.passengers,vehicleType:r.vehicle_type||'carro',realRoute:r.real_route||[],predictedRoute:r.predicted_route||[]}; });
+                    return Object.keys(res).length ? res : null;
+                }
+                if (p[0]==='meeting'&&p[1]==='chats'&&p.length===3) {
+                    const {data} = await q('meeting_chats').select('*').eq('room_key',p[2]).order('ts');
+                    return _toMap(data,'id',r=>({senderUid:r.sender_uid,senderName:r.sender_name,text:r.content,timestamp:new Date(r.ts).getTime()}));
+                }
+                return null;
+            }
+
+            async function _writePath(path, data) {
+                const p = path.split('/').filter(Boolean);
+                const now = new Date().toISOString();
+                const q = (t) => _sb.from(t);
+                let res;
+                if (p[0]==='vendedores'&&p.length===2) res = await q('vendedores').upsert({uid:p[1],name:data.name,status:data.status,lat:data.lat,lon:data.lon,last_active:now});
+                else if (p[0]==='usuarios'&&p.length===2) res = await q('usuarios').upsert({uid:p[1],name:data.name,registered_at:now});
+                else if (p[0]==='meeting'&&p[1]==='participants'&&p.length===3) res = await q('meeting_participants').upsert({..._denormPart({uid:p[2],...data}),joined_at:now});
+                else if (p[0]==='meeting'&&p[1]==='notifications'&&p.length===3) { await q('meeting_notifications').delete().eq('vendor_uid',p[2]).eq('handled',false); res = await q('meeting_notifications').insert({vendor_uid:p[2],type:data.type,data,handled:data.handled||false}); }
+                else if (p[0]==='meeting'&&p[1]==='driverPickups'&&p.length===4) res = await q('meeting_driver_pickups').upsert({driver_uid:p[2],passenger_uid:p[3],passenger_name:data.name,status:data.status,sort_order:data.order||0},{onConflict:'driver_uid,passenger_uid'});
+                else if (p[0]==='meeting'&&p[1]==='attendance'&&p.length===4) res = await q('meeting_attendance').upsert({date:p[2],vendor_uid:p[3],name:data.name,role:data.role,driver_uid:data.driverUid||null,location_id:data.locationId,location_name:data.locationName,region:data.region||'',confirmed_at:now},{onConflict:'date,vendor_uid'});
+                else if (p[0]==='meeting'&&p[1]==='chats'&&p.length===3) res = await q('meeting_chats').insert({room_key:p[2],sender_uid:data.senderUid,sender_name:data.senderName,content:data.text,ts:now});
+                return res;
+            }
+
+            const _activeSubs = {};
+            function _subscribe(path, cb) {
+                const table = (path.split('/')[0]==='vendedores') ? 'vendedores' : 'meeting_participants'; // Simplified for shim
+                _readPath(path).then(data => cb({val:()=>data}));
+                const channel = _sb.channel('shim_'+path).on('postgres_changes',{event:'*',schema:'public',table: 'meeting_participants'}, async()=>{ const data=await _readPath(path); cb({val:()=>data}); }).subscribe();
+                _activeSubs[path] = channel;
+            }
+
+            class _Ref {
+                constructor(path) { this.path = path; }
+                async once() { const data = await _readPath(this.path); return { val: () => data }; }
+                on(ev, cb) { if (ev === 'value') _subscribe(this.path, cb); return cb; }
+                off() { if (_activeSubs[this.path]) { _sb.removeChannel(_activeSubs[this.path]); delete _activeSubs[this.path]; } }
+                async set(data) { await _writePath(this.path, data); }
+                async update(data) { await _writePath(this.path, data); }
+                async push(data) { await _writePath(this.path, data); }
+                async remove() { const p=this.path.split('/').filter(Boolean); if (p[0]==='meeting') await _sb.from('meeting_participants').delete().eq('vendor_uid',p[2]); }
+            }
+
+            const _auth = {
+                _user: null,
+                get currentUser() { return this._user ? {uid: this._user.id} : null; },
+                async signInWithEmailAndPassword(email, password) { const {data, error} = await _sb.auth.signInWithPassword({email, password}); if (error) throw error; this._user = data.user; return {user: {uid: data.user.id}}; },
+                onAuthStateChanged(cb) {
+                    _sb.auth.getSession().then(({data:{session}}) => { this._user = session?.user || null; cb(this._user ? {uid: this._user.id} : null); });
+                    _sb.auth.onAuthStateChange((_, session) => { this._user = session?.user || null; cb(this._user ? {uid: this._user.id} : null); });
+                }
+            };
+
+            const _shim = { auth: () => _auth, database: () => ({ ref: (path) => new _Ref(path) }) };
+            window.supabase = _shim;
+            window.firebase = _shim;
+        })();
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
     <script>
