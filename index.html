@@ -2095,7 +2095,7 @@
     <!-- ══════════════════════════════════════ -->
     <div id="screen-login" class="screen" style="display:none">
         <div class="login-top">
-            <img src="../assets/logo_empresa.png" alt="Logo" class="login-logo">
+            <img src="assets/logo_empresa.png" alt="Logo" class="login-logo">
             <div class="login-brand"><span>Uni</span>Rotas</div>
             <div class="login-sub">Integridade Logística</div>
         </div>
@@ -2738,9 +2738,22 @@
 
             const _activeSubs = {};
             function _subscribe(path, cb) {
-                const table = (path.split('/')[0]==='vendedores') ? 'vendedores' : 'meeting_participants'; // Simplified for shim
+                const p = path.split('/').filter(Boolean);
+                let table = 'meeting_participants'; // Default fallback
+                
+                if (p[0] === 'vendedores') table = 'vendedores';
+                else if (p[0] === 'mensagens') table = 'mensagens';
+                else if (p[0] === 'typing') table = 'typing_status';
+                else if (p[0] === 'meeting') {
+                    if (p[1] === 'notifications') table = 'meeting_notifications';
+                    else if (p[1] === 'participants') table = 'meeting_participants';
+                    else if (p[1] === 'chats') table = 'meeting_chats';
+                    else if (p[1] === 'driverPickups') table = 'meeting_driver_pickups';
+                    else if (p[1] === 'history') table = 'meeting_history';
+                }
+                
                 _readPath(path).then(data => cb({val:()=>data}));
-                const channel = _sb.channel('shim_'+path).on('postgres_changes',{event:'*',schema:'public',table: 'meeting_participants'}, async()=>{ const data=await _readPath(path); cb({val:()=>data}); }).subscribe();
+                const channel = _sb.channel('shim_'+path).on('postgres_changes',{event:'*',schema:'public',table: table}, async()=>{ const data=await _readPath(path); cb({val:()=>data}); }).subscribe();
                 _activeSubs[path] = channel;
             }
 
@@ -2753,6 +2766,18 @@
                 async update(data) { await _writePath(this.path, data); }
                 async push(data) { await _writePath(this.path, data); }
                 async remove() { const p=this.path.split('/').filter(Boolean); if (p[0]==='meeting') await _sb.from('meeting_participants').delete().eq('vendor_uid',p[2]); }
+                onDisconnect() {
+                    return {
+                        update: async (data) => {
+                            // Tenta sinalizar que o usuário está offline ao fechar a página (Best-effort)
+                            window.addEventListener('unload', () => {
+                                const url = `${_SUPA_URL}/rest/v1/vendedores?uid=eq.${currentVendorUid}`;
+                                navigator.sendBeacon(url, JSON.stringify(data));
+                            });
+                        },
+                        set: () => {}
+                    };
+                }
             }
 
             const _auth = {
@@ -3114,7 +3139,7 @@
 
             showScreen('dashboard');
             loadEconomyStats(); // Carrega estatísticas de economia
-            syncMeetingStatus(); // Sincronização centralizada (Playbook)
+            loadMeetingScreen(); // Sincronização centralizada (Playbook)
 
             // Phase 10: Messages & Red Dots
             initSupportMessageListener(uid);
@@ -3154,725 +3179,536 @@
             updateQuickCards();
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        //  GLOBALS DE REUNIÃO
-        // ──────────────────────────────────────────────────────────────────
-        let currentMeetingRole    = null;   // 'driver' | 'passenger' | 'individual'
-        let selectedPassengers    = [];     // [{uid, name, address, lat, lng, ...}]
-        let driverVehicleType     = 'carro'; // 'carro' | 'moto'
-        let driverRealRoute       = [];     // [{type, lat, lng, label, timestamp}]
-        let meetingLocationData   = null;   // {id, name, address, lat, lng, region}
-        let currentDriverUid      = null;   // UID do motorista (visão carona)
+// ──────────────────────────────────────────────────────────────────
+//  GLOBALS DE REUNIÃO
+// ──────────────────────────────────────────────────────────────────
+let currentMeetingRole    = null;   // 'driver' | 'passenger' | 'individual'
+let selectedPassengers    = [];     // [{uid, name, address, lat, lng, ...}]
+let driverVehicleType     = 'carro'; // 'carro' | 'moto'
+let driverRealRoute       = [];     // [{type, lat, lng, label, timestamp}]
+let meetingLocationData   = null;   // {id, name, address, lat, lng, region}
+let currentDriverUid      = null;   // UID do motorista (visão carona)
 
-        // Listeners (guardamos referências para limpeza segura)
-        let pickupListListener          = null;
-        let driverInfoListener          = null;
-        let passengerStateListener      = null;
-        let availablePassengersListener = null;
-        let supportListListener         = null;
-        let meetingChatPartnerUid       = null;
-        let roomCounts                  = {};
+// Listeners (guardamos referências para limpeza segura)
+let pickupListListener          = null;
+let driverInfoListener          = null;
+let passengerStateListener      = null;
+let availablePassengersListener = null;
+let meetingChatListener         = null;
+let meetingChatPartnerUid       = null;
+let roomCounts                  = {};
 
-        // Capacidade por tipo de veículo
-        const VEHICLE_CAPACITY = { carro: 4, moto: 1 };
+// Capacidade por tipo de veículo
+const VEHICLE_CAPACITY = { carro: 4, moto: 1 };
 
-        // Taxa de reembolso por km (R$)
-        const REIMBURSEMENT_RATE = { carro: 0.90, moto: 0.40 };
+// Taxa de reembolso por km (R$)
+const REIMBURSEMENT_RATE = { carro: 0.90, moto: 0.40 };
 
-        // ── SELEÇÃO DE VEÍCULO ───────────────────────────────────
-        function setDriverVehicle(type) {
-            driverVehicleType = type;
-            const carroLabel = document.getElementById('vehicle-opt-carro');
-            const motoLabel  = document.getElementById('vehicle-opt-moto');
-            const goldBorder = '2px solid var(--gold)';
-            const normalBorder = '2px solid var(--border)';
 
-            if (carroLabel) carroLabel.style.border = (type === 'carro') ? goldBorder : normalBorder;
-            if (motoLabel)  motoLabel.style.border  = (type === 'moto')  ? goldBorder : normalBorder;
+// ──────────────────────────────────────────────────────────────────
+//  SELEÇÃO DE VEÍCULO
+// ──────────────────────────────────────────────────────────────────
+function setDriverVehicle(type) {
+    driverVehicleType = type;
 
-            const capEl = document.getElementById('capacity-limit');
-            if (capEl) capEl.textContent = VEHICLE_CAPACITY[type] || 4;
+    const carroLabel = document.getElementById('vehicle-opt-carro');
+    const motoLabel  = document.getElementById('vehicle-opt-moto');
+    const goldBorder = '2px solid var(--gold)';
+    const normalBorder = '2px solid var(--border)';
 
-            const maxCap = VEHICLE_CAPACITY[type] || 4;
-            if (selectedPassengers.length > maxCap) {
-                selectedPassengers = selectedPassengers.slice(0, maxCap);
-                showToast(`Capacidade ajustada para ${maxCap} carona(s) — ${type}.`, 'info');
-            }
+    if (carroLabel) carroLabel.style.border = (type === 'carro') ? goldBorder : normalBorder;
+    if (motoLabel)  motoLabel.style.border  = (type === 'moto')  ? goldBorder : normalBorder;
 
-            updateSeatIndicator();
-            const sc = document.getElementById('selected-count');
-            if (sc) sc.textContent = selectedPassengers.length;
-            const btn = document.getElementById('btn-start-driver-route');
-            if (btn) btn.disabled = selectedPassengers.length === 0;
+    const capEl = document.getElementById('capacity-limit');
+    if (capEl) capEl.textContent = VEHICLE_CAPACITY[type] || 4;
 
-            lucide.createIcons();
+    const maxCap = VEHICLE_CAPACITY[type] || 4;
+    if (selectedPassengers.length > maxCap) {
+        selectedPassengers = selectedPassengers.slice(0, maxCap);
+        showToast(`Capacidade ajustada para ${maxCap} carona(s) — ${type}.`, 'info');
+    }
+
+    updateSeatIndicator();
+    document.getElementById('selected-count').textContent = selectedPassengers.length;
+    document.getElementById('btn-start-driver-route').disabled = selectedPassengers.length === 0;
+
+    lucide.createIcons();
+}
+
+
+// ──────────────────────────────────────────────────────────────────
+//  INDICADOR DE ASSENTOS (respeita capacidade dinâmica)
+// ──────────────────────────────────────────────────────────────────
+function updateSeatIndicator() {
+    const container = document.getElementById('seat-indicator');
+    if (!container) return;
+
+    const capacity = VEHICLE_CAPACITY[driverVehicleType] || 4;
+    let html = `<div class="seat driver-seat" title="Motorista"><i data-lucide="user" style="width:14px;"></i></div>`;
+
+    for (let i = 1; i <= 4; i++) {
+        if (i > capacity) {
+            html += `<div class="seat" style="opacity:0.15;cursor:not-allowed;" title="Indisponível"></div>`;
+        } else if (i <= selectedPassengers.length) {
+            html += `<div class="seat taken" title="${selectedPassengers[i-1]?.name || 'Carona'}">
+                        <i data-lucide="user-check" style="width:14px;color:var(--gold)"></i>
+                     </div>`;
+        } else {
+            html += `<div class="seat empty" title="Vaga livre"></div>`;
         }
+    }
 
-        function updateSeatIndicator() {
-            const container = document.getElementById('seat-indicator');
-            if (!container) return;
-            const capacity = VEHICLE_CAPACITY[driverVehicleType] || 4;
-            let html = `<div class="seat driver-seat" title="Motorista"><i data-lucide="user" style="width:14px;"></i></div>`;
-            for (let i = 1; i <= 4; i++) {
-                if (i > capacity) html += `<div class="seat" style="opacity:0.15;cursor:not-allowed;" title="Indisponível"></div>`;
-                else if (i <= selectedPassengers.length) {
-                    html += `<div class="seat taken" title="${selectedPassengers[i-1]?.name || 'Carona'}">
-                                <i data-lucide="user-check" style="width:14px;color:var(--gold)"></i>
-                             </div>`;
-                } else html += `<div class="seat empty" title="Vaga livre"></div>`;
+    container.innerHTML = html;
+    lucide.createIcons({ root: container });
+}
+
+
+// ──────────────────────────────────────────────────────────────────
+//  HARD RESET DA REUNIÃO (limpa tudo)
+// ──────────────────────────────────────────────────────────────────
+async function MeetingHardReset() {
+    console.log('[Meeting] Hard Reset iniciado...');
+    const db = supabase.database();
+
+    if (pickupListListener && currentVendorUid) {
+        db.ref(`meeting/driverPickups/${currentVendorUid}`).off('value', pickupListListener);
+        pickupListListener = null;
+    }
+    if (driverInfoListener && currentDriverUid) {
+        db.ref(`vendedores/${currentDriverUid}`).off('value', driverInfoListener);
+        driverInfoListener = null;
+    }
+    if (passengerStateListener && currentVendorUid) {
+        db.ref(`meeting/participants/${currentVendorUid}`).off('value', passengerStateListener);
+        passengerStateListener = null;
+    }
+    if (availablePassengersListener) {
+        db.ref('meeting/participants').off('value', availablePassengersListener);
+        availablePassengersListener = null;
+    }
+
+    currentMeetingRole  = null;
+    currentDriverUid    = null;
+    meetingLocationData = null;
+    selectedPassengers  = [];
+    driverRealRoute     = [];
+    driverVehicleType   = 'carro';
+
+    const meetingViews = [
+        'meeting-role-select',
+        'meeting-location-select',
+        'meeting-passenger-waiting',
+        'meeting-passenger-selected',
+        'meeting-driver-select',
+        'meeting-driver-route',
+        'meeting-driver-return',
+        'meeting-individual',
+    ];
+    meetingViews.forEach(v => {
+        const el = document.getElementById(v);
+        if (el) el.classList.add('hidden');
+    });
+
+    ['btn-individual-confirm', 'btn-passenger-confirm-presence', 'btn-driver-confirm-presence'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) { btn.classList.add('hidden'); btn.disabled = true; }
+    });
+
+    ['individual-confirmed', 'passenger-reunion-status', 'driver-meeting-in-progress'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+
+    ['driver-pickup-list', 'driver-dropoff-list'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '';
+    });
+    const paxList = document.getElementById('available-passengers-list');
+    if (paxList) paxList.innerHTML = '<div class="empty-state"><i data-lucide="users"></i><p>Carregando...</p></div>';
+
+    if (currentVendorUid) {
+        try {
+            const snap = await db.ref(`meeting/participants/${currentVendorUid}`).once('value');
+            const p = snap.val();
+            if (p && p.status !== 'finished' && p.phase !== 'return' && p.phase !== 'done') {
+                await db.ref(`meeting/participants/${currentVendorUid}`).remove();
             }
-            container.innerHTML = html;
-            lucide.createIcons({ root: container });
-        }
+        } catch (e) { console.warn('[Meeting] Hard Reset — erro ao remover participante:', e.message); }
+    }
 
-        async function MeetingHardReset() {
-            console.log('[Meeting] Hard Reset iniciado...');
-            const db = supabase.database();
-            if (pickupListListener && currentVendorUid) {
-                db.ref(`meeting/driverPickups/${currentVendorUid}`).off('value', pickupListListener);
-                pickupListListener = null;
-            }
-            if (driverInfoListener && currentDriverUid) {
-                db.ref(`vendedores/${currentDriverUid}`).off('value', driverInfoListener);
-                driverInfoListener = null;
-            }
-            if (passengerStateListener && currentVendorUid) {
-                db.ref(`meeting/participants/${currentVendorUid}`).off('value', passengerStateListener);
-                passengerStateListener = null;
-            }
-            if (availablePassengersListener) {
-                db.ref('meeting/participants').off('value', availablePassengersListener);
-                availablePassengersListener = null;
-            }
+    lucide.createIcons();
+    console.log('[Meeting] Hard Reset concluído.');
+}
 
-            if (currentVendorUid) {
-                try {
-                    await db.ref(`meeting/participants/${currentVendorUid}`).remove();
-                    await db.ref(`meeting/driverPickups/${currentVendorUid}`).remove();
-                } catch (e) { console.warn('[Meeting] Reset DB erro:', e.message); }
-            }
 
-            currentMeetingRole  = null;
-            currentDriverUid    = null;
-            meetingLocationData = null;
-            selectedPassengers  = [];
-            driverRealRoute     = [];
-            driverVehicleType   = 'carro';
+// ──────────────────────────────────────────────────────────────────
+//  NAVEGAÇÃO ENTRE VIEWS DE REUNIÃO
+// ──────────────────────────────────────────────────────────────────
+function showMeetingView(viewId) {
+    const alertEl = document.getElementById('meeting-chat-alert');
+    if (alertEl) alertEl.remove();
 
-            // Reset UI
-            const views = ['meeting-role-select','meeting-location-select','meeting-passenger-waiting','meeting-passenger-selected','meeting-driver-select','meeting-driver-route','meeting-driver-return','meeting-individual'];
-            views.forEach(v => { const el = document.getElementById(v); if (el) el.classList.add('hidden'); });
+    const views = [
+        'meeting-role-select',
+        'meeting-location-select',
+        'meeting-passenger-waiting',
+        'meeting-passenger-selected',
+        'meeting-driver-select',
+        'meeting-driver-route',
+        'meeting-driver-return',
+        'meeting-individual',
+    ];
+    views.forEach(v => {
+        const el = document.getElementById(v);
+        if (el) el.classList.add('hidden');
+    });
 
-            ['btn-individual-confirm', 'btn-passenger-confirm-presence', 'btn-driver-confirm-presence'].forEach(id => {
-                const btn = document.getElementById(id); if (btn) { btn.classList.add('hidden'); btn.disabled = true; }
-            });
-            ['individual-confirmed', 'passenger-reunion-status', 'driver-meeting-in-progress'].forEach(id => {
-                const el = document.getElementById(id); if (el) el.classList.add('hidden');
-            });
-            ['driver-pickup-list', 'driver-dropoff-list'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+    const target = document.getElementById(viewId);
+    if (target) target.classList.remove('hidden');
+    lucide.createIcons();
+}
 
-            lucide.createIcons();
-            console.log('[Meeting] Hard Reset concluído.');
-        }
 
-        function cancelDriver() {
-            showConfirmDialog('Cancelar Rota?', 'Deseja realmente cancelar a rota e voltar à seleção inicial?', async () => {
-                await MeetingHardReset();
-                showMeetingView('meeting-role-select');
-                showToast('Rota cancelada com sucesso.', 'info');
-            });
-        }
+// ──────────────────────────────────────────────────────────────────
+//  CARREGA TELA DE REUNIÃO (restaura estado se necessário)
+// ──────────────────────────────────────────────────────────────────
+function loadMeetingScreen() {
+    if (!currentVendorUid) {
+        setTimeout(loadMeetingScreen, 500);
+        return;
+    }
 
-        function showMeetingView(viewId) {
-            const alertEl = document.getElementById('meeting-chat-alert');
-            if (alertEl) alertEl.remove();
-            const views = ['meeting-role-select','meeting-location-select','meeting-passenger-waiting','meeting-passenger-selected','meeting-driver-select','meeting-driver-route','meeting-driver-return','meeting-individual'];
-            views.forEach(v => { const el = document.getElementById(v); if (el) el.classList.add('hidden'); });
-            const target = document.getElementById(viewId);
-            if (target) target.classList.remove('hidden');
-            lucide.createIcons();
-        }
-
-        // ── HISTÓRICO DE REUNIÕES ───────────────────────────
-        async function loadMyMeetingHistory() {
-            const container = document.getElementById('my-meeting-history-list');
-            if (!container) return;
-            container.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
-            try {
-                const snap = await supabase.database().ref('meeting/history').once('value');
-                const allDates = snap.val();
-                const myItems = [];
-                if (allDates) {
-                    Object.entries(allDates).forEach(([date, drivers]) => {
-                        if (drivers[currentVendorUid]) {
-                            const d = drivers[currentVendorUid];
-                            myItems.push({ date, role: 'driver', data: d, passengers: d.passengers ? Object.values(d.passengers) : [] });
-                        }
-                        Object.values(drivers).forEach(d => {
-                            const me = d.passengers ? Object.values(d.passengers).find(p => p.uid === currentVendorUid) : null;
-                            if (me) myItems.push({ date, role: 'passenger', driverName: d.driverName, data: me });
-                        });
-                    });
+    supabase.database()
+        .ref(`meeting/participants/${currentVendorUid}`)
+        .once('value')
+        .then(snap => {
+            const data = snap.val();
+            if (data && data.role && data.status !== 'finished' && data.phase !== 'done') {
+                if (!data.locationId) {
+                    selectRole(data.role);
+                } else {
+                    restoreMeetingState(data);
                 }
-                const snapAtt = await supabase.database().ref('meeting/attendance').once('value');
-                if (snapAtt.val()) {
-                    Object.entries(snapAtt.val()).forEach(([date, people]) => {
-                        if (people[currentVendorUid]?.role === 'individual') myItems.push({ date, role: 'individual', data: people[currentVendorUid] });
-                    });
-                }
-                if (myItems.length === 0) { container.innerHTML = '<div class="empty-state"><p>Nenhuma reunião.</p></div>'; return; }
-                myItems.sort((a, b) => b.date.localeCompare(a.date));
-                const labels = { driver: 'Motorista', passenger: 'Carona', individual: 'Individual' };
-                container.innerHTML = myItems.map(item => {
-                    const [y, m, d] = item.date.split('-');
-                    return `<div class="meeting-history-item"><div class="mh-header"><span class="mh-badge ${item.role}">${labels[item.role]}</span><span class="mh-date">${d}/${m}/${y}</span></div></div>`;
-                }).join('');
-                lucide.createIcons();
-            } catch (e) { container.innerHTML = `<p>Erro: ${e.message}</p>`; }
-        }
-
-        // ── MEETING NOTIFICATION LISTENER ────────────────────────────────────────
-        function listenForMeetingNotifications(uid) {
-            supabase.database().ref(`meeting/notifications/${uid}`).on('value', async snap => {
-                const notif = snap.val();
-                if (!notif || notif.handled) return;
-
-                // ─── NOTIFICAÇÃO 1: Motorista quer te levar (aceitar viagem) ───
-                if (notif.type === 'pickup_request') {
-                    if (currentMeetingRole === 'driver') {
-                        await supabase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
-                        return;
-                    }
-                    showMeetingView('meeting-passenger-selected');
-
-                    showNotification('gold', 'car', 'Convite de carona!',
-                        `<strong>${notif.driverName}</strong> quer te levar à reunião.<br>Você aceita viajar com ele?`,
-                        // ACEITAR
-                        async () => {
-                            try {
-                                const checkSnap = await supabase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).once('value');
-                                if (!checkSnap.exists() || checkSnap.val().status === 'cancelled') {
-                                    showToast('Ops! O motorista já retirou o convite.', 'error');
-                                    await supabase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
-                                    syncMeetingStatus();
-                                    return;
-                                }
-                                const updates = {};
-                                updates[`meeting/participants/${uid}/embarkStatus`] = 'accepted_ride';
-                                updates[`meeting/participants/${uid}/driverUid`] = notif.driverUid;
-                                updates[`meeting/participants/${uid}/driverName`] = notif.driverName;
-                                updates[`meeting/driverPickups/${notif.driverUid}/${uid}/status`] = 'accepted_ride';
-                                updates[`meeting/notifications/${uid}/handled`] = true;
-                                await supabase.database().ref().update(updates);
-                                showToast('Viagem confirmada! Aguarde o motorista.', 'success');
-
-                                showMeetingView('meeting-passenger-selected');
-                                document.getElementById('passenger-embark-status').innerHTML = `
-                                    <div style="color:var(--gold);font-weight:700">✓ Viagem confirmada!</div>
-                                    <div style="font-size:0.75rem;color:var(--muted);margin-top:4px">
-                                        Aguarde o motorista chegar no seu endereço.
-                                    </div>`;
-                                const wrap = document.getElementById('passenger-driver-chat-wrap');
-                                if (wrap) wrap.style.display = 'flex';
-                            } catch (e) {
-                                showToast('Erro ao aceitar: ' + e.message, 'error');
-                            }
-                        },
-                        // RECUSAR
-                        async () => {
-                            try {
-                                await supabase.database().ref(`meeting/participants/${uid}`).update({
-                                    embarkStatus: 'waiting',
-                                    driverUid: null
-                                });
-                                await supabase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({
-                                    status: 'refused'
-                                });
-                                await supabase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
-                                showToast('Convite recusado.', 'error');
-                            } catch (e) { console.error(e); }
-                        }
-                    );
-                }
-
-                // ─── NOTIFICAÇÃO 2: Motorista chegou, confirmar embarque físico ───
-                else if (notif.type === 'boardingrequest') {
-                    showNotification('success', 'check-circle', 'Motorista chegou!',
-                        `<strong>${notif.driverName}</strong> diz que chegou no seu local. Você embarcou?`,
-                        // CONFIRMOU EMBARQUE
-                        async () => {
-                            await supabase.database().ref(`meeting/participants/${uid}`).update({ embarkStatus: 'boarded' });
-                            await supabase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({ status: 'boarded' });
-                            await supabase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
-                            document.getElementById('passenger-embark-status').innerHTML = `
-                                <div style="color:var(--success);font-weight:700">✅ Embarcado</div>
-                                <div style="font-size:0.75rem;color:var(--muted);margin-top:4px">A caminho da reunião com ${notif.driverName}.</div>`;
-                            showToast('Embarque confirmado!', 'success');
-                        },
-                        // NÃO EMBARCOU
-                        async () => {
-                            await supabase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({ status: 'not_boarded' });
-                            await supabase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
-                            showToast('Informado ao motorista que não embarcou.', 'error');
-                        }
-                    );
-                }
-
-                // ─── NOTIFICAÇÃO 3: Retorno ───
-                else if (notif.type === 'return_started') {
-                    showNotification('info', 'home', 'Reunião encerrada!',
-                        'O motorista iniciou o retorno. Prepare-se para chegar em casa.',
-                        async () => {
-                            await supabase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
-                            showMeetingView('meeting-passenger-selected');
-                            document.getElementById('passenger-embark-status').innerHTML = `
-            <div style="color:var(--info);font-weight:700">🏠 Retorno iniciado</div>
-            <div style="font-size:0.78rem;color:var(--muted);margin-top:4px">
-              Prepare-se para ir para casa. Aguarde o motorista.
-            </div>
-          `;
-                            document.getElementById('btn-passenger-confirm-presence').classList.remove('hidden');
-                        },
-                        null // sem botão recusar
-                    );
-                }
-
-                // ─── NOTIFICAÇÃO 4: Desembarque (carona confirma chegada) ───
-                else if (notif.type === 'dropoff_request') {
-                    showNotification('success', 'home', 'Chegou ao destino?',
-                        `O motorista <strong>${notif.driverName}</strong> informou que você chegou. Você confirma o desembarque?`,
-                        // CONFIRMOU CHEGADA
-                        async () => {
-                            await supabase.database().ref(`meeting/participants/${uid}`).update({
-                                embarkStatus: 'finished',
-                                status: 'finished'
-                            });
-                            // Notifica o motorista da confirmação
-                            await supabase.database().ref(`meeting/driverPickups/${notif.driverUid}/${uid}`).update({
-                                dropoffStatus: 'confirmed'
-                            });
-                            await supabase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
-                            showToast('Desembarque confirmado! Até logo.', 'success');
-                            showMeetingView('meeting-role-select');
-                        },
-                        // NÃO CHEGOU
-                        async () => {
-                            await supabase.database().ref(`meeting/notifications/${uid}`).update({ handled: true });
-                            showToast('Aviso enviado: você ainda não desembarcou.', 'error');
-                        }
-                    );
-                }
-
-                // ─── NOTIFICAÇÃO 5: Carona cancelou (motorista recebe) ───
-                else if (notif.type === 'passengerCancelled') {
-                    showToast(`⚠️ ${notif.passengerName} cancelou a participação.`, 'error');
-                    // Remove da seleção local se ainda estiver
-                    selectedPassengers = selectedPassengers.filter(p => p.uid !== notif.passengerUid);
-                    const countEl = document.getElementById('selected-count');
-                    if (countEl) countEl.textContent = selectedPassengers.length;
-                    await supabase.database().ref(`meeting/notifications/${currentVendorUid}`).update({ handled: true });
-                }
-            });
-        }
-
-        function showPassengerEmbarked(driverName) {
-            const status = document.getElementById('passenger-embark-status');
-            if (status) {
-                status.innerHTML = `<div style="color:var(--success);font-weight:700;font-size:1rem;">✓ Embarque iniciado!</div>
-                <div style="font-size:0.78rem;color:var(--muted);margin-top:4px;">Você está no carro de ${driverName}</div>`;
-            }
-            document.getElementById('btn-passenger-confirm-presence').classList.remove('hidden');
-            showToast('Embarque confirmado!', 'success');
-        }
-
-        // ── NOTIFICATION MODAL ────────────────────────────────────────────────────
-        function showNotification(iconType, iconName, title, subHtml, onAccept, onRefuse) {
-            const modal = document.getElementById('notification-modal');
-            const iconEl = document.getElementById('notif-icon');
-            const titleEl = document.getElementById('notif-title');
-            const subEl = document.getElementById('notif-sub');
-            const btns = document.getElementById('notif-btns');
-
-            iconEl.className = `notif-icon ${iconType}`;
-            iconEl.innerHTML = `<i data-lucide="${iconName}"></i>`;
-            titleEl.textContent = title;
-            subEl.innerHTML = subHtml;
-
-            // Se não há recusa (ex: retorno), mostra só "OK"
-            if (onRefuse === null) {
-                btns.innerHTML = `
-      <button class="btn-accept" style="grid-column:span 2" onclick="handleNotifAccept()">OK, entendi</button>
-    `;
             } else {
-                btns.innerHTML = `
-      <button class="btn-accept" onclick="handleNotifAccept()">Aceitar</button>
-      <button class="btn-refuse" onclick="handleNotifRefuse()">Recusar</button>
-    `;
+                showMeetingView('meeting-role-select');
             }
+        })
+        .catch(e => {
+            console.error('[Meeting] Erro ao carregar tela:', e.message);
+            showMeetingView('meeting-role-select');
+        });
+}
 
-            currentNotifCallback = { accept: onAccept, refuse: onRefuse };
-            modal.classList.remove('hidden');
-            lucide.createIcons();
+
+// ──────────────────────────────────────────────────────────────────
+//  RESTAURAÇÃO DE ESTADO
+// ──────────────────────────────────────────────────────────────────
+function restoreMeetingState(data) {
+    currentMeetingRole = data.role;
+
+    if (data.locationName) {
+        meetingLocationData = {
+            id:      data.locationId,
+            name:    data.locationName,
+            address: data.locationAddress || '',
+            lat:     data.lat,
+            lng:     data.lng,
+            region:  data.region || '',
+        };
+        const badge = document.getElementById('meeting-location-name');
+        if (badge) badge.textContent = data.locationName;
+    }
+
+    if (data.vehicleType) driverVehicleType = data.vehicleType;
+
+    if (data.role === 'passenger') {
+        if (!data.driverUid || data.embarkStatus === 'waiting') {
+            showMeetingView('meeting-passenger-waiting');
+        } else {
+            showMeetingView('meeting-passenger-selected');
+            listenForDriverInfo(data.driverUid);
+            const statusEl = document.getElementById('passenger-embark-status');
+            if (statusEl && data.embarkStatus) {
+                const msgs = {
+                    invitePending:    'Aguardando confirmação do motorista...',
+                    accepted_ride:    '✓ Viagem confirmada! Aguarde o motorista.',
+                    boarding_pending: '⏳ O motorista está chegando. Prepare-se.',
+                    boarded:          '✅ Você está no carro! Aproveite a viagem.',
+                };
+                statusEl.innerHTML = `<div>${msgs[data.embarkStatus] || 'Acompanhe o trajeto.'}</div>`;
+            }
         }
-        async function handleNotifAccept() {
-            document.getElementById('notification-modal').classList.add('hidden');
-            if (currentNotifCallback && currentNotifCallback.accept) await currentNotifCallback.accept();
-            currentNotifCallback = null;
+    } else if (data.role === 'driver') {
+        if (data.phase === 'return') {
+            showMeetingView('meeting-driver-return');
+            loadDropoffList();
+        } else if (data.phase === 'meeting') {
+            showMeetingView('meeting-driver-route');
+            showDriverMeetingInProgress();
+            loadPickupList();
+        } else {
+            showMeetingView('meeting-driver-route');
+            loadPickupList();
         }
-        async function handleNotifRefuse() {
-            document.getElementById('notification-modal').classList.add('hidden');
-            if (currentNotifCallback && currentNotifCallback.refuse) await currentNotifCallback.refuse();
-            currentNotifCallback = null;
+    } else if (data.role === 'individual') {
+        showMeetingView('meeting-individual');
+        const locEl = document.getElementById('individual-location-details');
+        if (locEl && data.locationName) {
+            locEl.innerHTML = `<strong>${data.locationName}</strong><br>${data.locationAddress || ''}`;
         }
+        if (data.presenceConfirmed) {
+            document.getElementById('btn-individual-confirm')?.classList.add('hidden');
+            document.getElementById('individual-confirmed')?.classList.remove('hidden');
+        }
+    }
+}
 
         // ──────────────────────────────────────────────────────────────────
-        //  CARREGA TELA DE REUNIÃO (restaura estado se necessário)
+        //  SELEÇÃO DE PAPEL (Driver / Passenger / Individual)
         // ──────────────────────────────────────────────────────────────────
-        function loadMeetingScreen() {
-            if (!currentVendorUid) {
-                setTimeout(loadMeetingScreen, 500);
-                return;
-            }
-            supabase.database().ref(`meeting/participants/${currentVendorUid}`).once('value').then(snap => {
-                const data = snap.val();
-                if (data && data.role && data.status !== 'finished' && data.phase !== 'done') {
-                    if (!data.locationId) selectRole(data.role);
-                    else restoreMeetingState(data);
-                } else showMeetingView('meeting-role-select');
-            }).catch(e => { console.error('[Meeting] Erro load:', e.message); showMeetingView('meeting-role-select'); });
-        }
-
-        function restoreMeetingState(data) {
-            currentMeetingRole = data.role;
-            if (data.locationName) {
-                meetingLocationData = { id: data.locationId, name: data.locationName, address: data.locationAddress || '', lat: data.lat, lng: data.lng, region: data.region || '' };
-                const badge = document.getElementById('meeting-location-name');
-                if (badge) badge.textContent = data.locationName;
-            }
-            if (data.vehicleType) driverVehicleType = data.vehicleType;
-
-            if (data.role === 'passenger') {
-                if (!data.driverUid || data.embarkStatus === 'waiting') showMeetingView('meeting-passenger-waiting');
-                else { showMeetingView('meeting-passenger-selected'); listenForDriverInfo(data.driverUid); }
-            } else if (data.role === 'driver') {
-                if (data.phase === 'return') { showMeetingView('meeting-driver-return'); loadDropoffList(); }
-                else if (data.phase === 'meeting') { showMeetingView('meeting-driver-route'); showDriverMeetingInProgress(); loadPickupList(); }
-                else { showMeetingView('meeting-driver-route'); loadPickupList(); }
-            } else if (data.role === 'individual') {
-                showMeetingView('meeting-individual');
-                const locEl = document.getElementById('individual-location-details');
-                if (locEl) locEl.innerHTML = `<strong>${data.locationName}</strong><br>${data.locationAddress || ''}`;
-                if (data.presenceConfirmed) {
-                    document.getElementById('btn-individual-confirm')?.classList.add('hidden');
-                    document.getElementById('individual-confirmed')?.classList.remove('hidden');
-                }
-            }
-        }
-
         async function selectRole(role) {
+            console.log(`[Meeting] Papel selecionado: ${role}`);
             await MeetingHardReset();
             currentMeetingRole = role;
             showMeetingView('meeting-location-select');
             loadMeetingLocationsForSelection();
         }
 
+        // ──────────────────────────────────────────────────────────────────
+        //  CARREGA LOCAIS DISPONÍVEIS (Filtra por Região)
+        // ──────────────────────────────────────────────────────────────────
         async function loadMeetingLocationsForSelection() {
             const container = document.getElementById('meeting-locations-suggestion-list');
             if (!container) return;
-            container.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
+
+            container.innerHTML = '<div class="empty-state"><i data-lucide="map-pin"></i><p>Carregando locais...</p></div>';
+            lucide.createIcons({ root: container });
+
             try {
                 const [userSnap, locSnap] = await Promise.all([
                     supabase.database().ref(`usuarios/${currentVendorUid}`).once('value'),
                     supabase.database().ref('meeting/locations').once('value')
                 ]);
-                const userData = userSnap.val() || {};
+
+                const userData  = userSnap.val() || {};
                 const locations = locSnap.val() || {};
-                const userRegion = (userData.address?.cidade || '').toLowerCase().includes('rio') ? 'RJ' : 'ES';
-                const filtered = Object.entries(locations).filter(([, loc]) => !loc.region || loc.region === userRegion);
-                if (filtered.length === 0) { container.innerHTML = '<p>Nenhum local para sua região.</p>'; return; }
+
+                // Lógica de Região (ES ou RJ) baseada no endereço
+                const city = (userData.address?.cidade || '').toLowerCase();
+                const userRegion = city.includes('rio') ? 'RJ' : 'ES';
+
+                const filtered = Object.entries(locations).filter(([, loc]) => {
+                    return !loc.region || loc.region === userRegion;
+                });
+
+                if (filtered.length === 0) {
+                    container.innerHTML = `<div class="empty-state"><p>Nenhum local cadastrado para ${userRegion}.</p></div>`;
+                    return;
+                }
+
                 container.innerHTML = '';
                 filtered.forEach(([id, loc]) => {
                     const div = document.createElement('div');
                     div.className = 'meeting-location-opt';
-                    div.style.cssText = 'background:var(--glass); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:10px; cursor:pointer;';
+                    div.style.cssText = `
+                        background: var(--glass); border: 1px solid var(--border);
+                        border-radius: 12px; padding: 16px; margin-bottom: 10px; cursor: pointer;
+                        transition: all 0.2s;
+                    `;
+                    div.onmouseover = () => div.style.borderColor = 'var(--gold)';
+                    div.onmouseout = () => div.style.borderColor = 'var(--border)';
                     div.onclick = () => confirmMeetingLocation(id, loc);
-                    div.innerHTML = `<div><strong>${loc.name}</strong><div style="font-size:0.75rem; color:var(--muted);">${loc.address || ''}</div></div>`;
+                    div.innerHTML = `
+                        <div style="font-weight: 700; color: var(--gold);">${loc.name}</div>
+                        <div style="font-size: 0.75rem; color: var(--muted); margin-top: 4px;">${loc.address || ''}</div>
+                        <div style="font-size: 0.65rem; color: var(--gold); margin-top: 6px; opacity: 0.6;">${loc.region || 'Geral'}</div>
+                    `;
                     container.appendChild(div);
                 });
                 lucide.createIcons();
-            } catch (e) { container.innerHTML = `<p>Erro: ${e.message}</p>`; }
+            } catch (e) {
+                container.innerHTML = `<p style="color:var(--danger);padding:20px;">Erro: ${e.message}</p>`;
+            }
         }
 
+        // ──────────────────────────────────────────────────────────────────
+        //  CONFIRMA LOCAL E INICIA FLUXO ESPECÍFICO
+        // ──────────────────────────────────────────────────────────────────
+        // ──────────────────────────────────────────────────────────────────
+        //  CONFIRMA LOCAL E INICIA FLUXO ESPECÍFICO
+        // ──────────────────────────────────────────────────────────────────
         async function confirmMeetingLocation(locId, locData) {
             if (!currentMeetingRole || !currentVendorUid) return;
+
             meetingLocationData = { id: locId, ...locData };
+
             const pData = {
-                uid: currentVendorUid, name: currentVendorName, role: currentMeetingRole, vehicleType: driverVehicleType,
-                embarkStatus: 'waiting', joinedAt: Date.now(), locationId: locId, locationName: locData.name,
-                locationAddress: locData.address || '', region: locData.region || '', lat: locData.lat, lng: locData.lng,
-                phase: 'idle', presenceConfirmed: false, status: 'active'
+                uid:              currentVendorUid,
+                name:             currentVendorName,
+                role:             currentMeetingRole,
+                vehicleType:      driverVehicleType,
+                embarkStatus:     'waiting',
+                joinedAt:         Date.now(),
+                locationId:       locId,
+                locationName:     locData.name,
+                locationAddress:  locData.address || '',
+                region:           locData.region  || '',
+                lat:              locData.lat,
+                lng:              locData.lng,
+                phase:            'idle',
+                presenceConfirmed: false,
+                status:           'active'
             };
+
             try {
                 await supabase.database().ref(`meeting/participants/${currentVendorUid}`).set(pData);
-                if (currentMeetingRole === 'passenger') showMeetingView('meeting-passenger-waiting');
-                else if (currentMeetingRole === 'driver') {
+
+                if (currentMeetingRole === 'passenger') {
+                    showMeetingView('meeting-passenger-waiting');
+                } else if (currentMeetingRole === 'driver') {
                     showMeetingView('meeting-driver-select');
                     setDriverVehicle(driverVehicleType);
                     selectedPassengers = [];
                     updateSeatIndicator();
                     loadAvailablePassengers();
                 } else {
+                    // Individual
                     const locEl = document.getElementById('individual-location-details');
                     if (locEl) locEl.innerHTML = `<strong>${locData.name}</strong><br>${locData.address || ''}`;
                     showMeetingView('meeting-individual');
                 }
-            } catch (e) { showToast('Erro confirmar local: ' + e.message, 'error'); }
-        }
-
-        async function updateUniversalPresence() {
-            if (!meetingLocationData || !lastLat || !lastLon) return;
-            try {
-                const phaseSnap = await supabase.database().ref(`meeting/participants/${currentVendorUid}/phase`).once('value');
-                const p = phaseSnap.val();
-                if (p === 'meeting' || p === 'return' || p === 'done') return;
-            } catch (_) {}
-
-            const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
-            const isNear = dist < 150;
-
-            const btnIds = ['btn-individual-confirm', 'btn-passenger-confirm-presence', 'btn-driver-confirm-presence'];
-            btnIds.forEach(id => {
-                const b = document.getElementById(id);
-                if (b) { b.classList.toggle('hidden', !isNear); b.disabled = !isNear; b.style.opacity = isNear ? '1' : '0.5'; }
-            });
-        }
-
-        function listenForDriverInfo(driverUid) {
-            currentDriverUid = driverUid;
-            if (driverInfoListener) supabase.database().ref(`vendedores/${currentDriverUid}`).off('value', driverInfoListener);
-            driverInfoListener = supabase.database().ref(`vendedores/${driverUid}`).on('value', snap => {
-                const d = snap.val(); if (!d) return;
-                const nameEl = document.getElementById('passenger-driver-name');
-                if (nameEl) nameEl.textContent = 'Motorista: ' + (d.name || driverUid);
-                if (d.lat && lastLat) {
-                    const dist = calcDistance(lastLat, lastLon, d.lat, d.lon || d.lng);
-                    const eta = Math.round((dist / 1000) / 40 * 60);
-                    const etaEl = document.getElementById('passenger-eta-text');
-                    if (etaEl) etaEl.textContent = `🚗 Motorista a ${Math.round(dist)}m — ~${eta} min`;
-                }
-            });
-
-            if (passengerStateListener) supabase.database().ref(`meeting/participants/${currentVendorUid}`).off('value', passengerStateListener);
-            passengerStateListener = supabase.database().ref(`meeting/participants/${currentVendorUid}`).on('value', snap => {
-                const data = snap.val(); if (!data) return;
-                const wrap = document.getElementById('passenger-driver-chat-wrap');
-                const statusEl = document.getElementById('passenger-embark-status');
-
-                switch (data.embarkStatus) {
-                    case 'accepted_ride':
-                        showMeetingView('meeting-passenger-selected');
-                        if (wrap) wrap.style.display = 'flex';
-                        if (statusEl) statusEl.innerHTML = '<div style="color:var(--gold);font-weight:700">✓ Viagem confirmada!</div>';
-                        break;
-                    case 'boarding_pending':
-                        if (statusEl) statusEl.innerHTML = '<div style="color:var(--info);font-weight:700">⏳ Motorista chegando...</div>';
-                        break;
-                    case 'boarded':
-                        showMeetingView('meeting-passenger-selected');
-                        if (statusEl) statusEl.innerHTML = '<div style="color:var(--success);font-weight:700">✅ Você embarcou!</div>';
-                        updateUniversalPresence();
-                        break;
-                    case 'waiting':
-                        if (currentMeetingRole === 'passenger') { showMeetingView('meeting-passenger-waiting'); showToast('O motorista cancelou.', 'error'); }
-                        break;
-                }
-            });
-            listenForMeetingChatMessages(driverUid);
-        }
-
-        async function loadMeetingLocationsForSelection() {
-            const container = document.getElementById('meeting-locations-suggestion-list');
-            container.innerHTML = '<div class="empty-state"><i data-lucide="map-pin"></i><p>Carregando...</p></div>';
-            lucide.createIcons();
-
-            try {
-                // Tenta pegar a região do usuário (pode vir do perfil ou de uma variável global)
-                // Se não tiver, o loadAvailablePassengers já filtra depois pelo locationId salvo.
-                const userSnap = await supabase.database().ref(`usuarios/${currentVendorUid}`).once('value');
-                const userData = userSnap.val() || {};
-                const city = userData.city || (userData.address && userData.address.cidade) || '';
-                const userRegion = city.toLowerCase().includes('rio') ? 'RJ' : 'ES';
-
-                const snap = await supabase.database().ref('meeting/locations').once('value');
-                const locations = snap.val() || {};
-                container.innerHTML = '';
-
-                // Filtra locais pela região do usuário (se o local tiver região definida)
-                const filtered = Object.entries(locations).filter(([id, loc]) => {
-                    if (!loc.region) return true; // Se não tem região, mostra pra todos
-                    return loc.region === userRegion;
-                });
-
-                if (filtered.length === 0) {
-                    container.innerHTML = `<div class="empty-state"><i data-lucide="info"></i><p>Nenhum local disponível para ${userRegion}.</p></div>`;
-                    lucide.createIcons();
-                    return;
-                }
-
-                filtered.forEach(([id, loc]) => {
-                    const div = document.createElement('div');
-                    div.style.cssText = 'background:var(--glass); border:1px solid var(--border); border-radius:12px; padding:16px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; transition:all 0.2s;';
-                    div.onmouseover = () => div.style.borderColor = 'var(--gold)';
-                    div.onmouseout = () => div.style.borderColor = 'var(--border)';
-                    div.onclick = () => confirmMeetingLocation(id, loc);
-                    div.innerHTML = `
-                        <div>
-                            <div style="font-weight:700; font-size:0.9rem;">${loc.name}</div>
-                            <div style="font-size:0.75rem; color:var(--muted); margin-top:4px;">${loc.address}</div>
-                        </div>
-                        <i data-lucide="chevron-right" style="color:var(--gold); width:18px;height:18px;"></i>
-                    `;
-                    container.appendChild(div);
-                });
-                lucide.createIcons();
-            } catch (e) {
-                container.innerHTML = `<p style="color:var(--danger); padding:20px;">Erro: ${e.message}</p>`;
-            }
-        }
-
-        async function confirmMeetingLocation(locId, locData) {
-            if (!currentMeetingRole || !currentVendorUid) return;
-
-            if (locData.lat === undefined || locData.lng === undefined) {
-                showToast('Este local não possui coordenadas. Peça ao gestor para atualizar o cadastro.', 'error');
-                return;
-            }
-
-            const participantData = {
-                uid: currentVendorUid,
-                name: currentVendorName,
-                role: currentMeetingRole,
-                embarkStatus: 'waiting',
-                joinedAt: Date.now(),
-                locationId: locId,
-                locationName: locData.name,
-                locationAddress: locData.address,
-                region: locData.region || '',
-                lat: locData.lat,
-                lng: locData.lng,
-                phase: 'idle',
-                presenceConfirmed: false
-            };
-
-            try {
-                meetingLocationData = locData; // SET GLOBAL IMMEDIATELY
-                await supabase.database().ref(`meeting/participants/${currentVendorUid}`).set(participantData);
-                showToast(`Local confirmado: ${locData.name}`, 'success');
-
-                if (currentMeetingRole === 'passenger') {
-                    showMeetingView('meeting-passenger-waiting');
-                } else if (currentMeetingRole === 'driver') {
-                    // RESET DRIVER UI (DEFENSIVAMENTE)
-                    const btnDriverConfirm = document.getElementById('btn-driver-confirm-presence');
-                    const infoDriverMeeting = document.getElementById('driver-meeting-in-progress');
-                    if (btnDriverConfirm) btnDriverConfirm.classList.remove('hidden');
-                    if (infoDriverMeeting) infoDriverMeeting.classList.add('hidden');
-
-                    showMeetingView('meeting-driver-select');
-                    selectedPassengers = []; // Garante lista limpa ao entrar
-                    updateSeatIndicator();
-                    loadAvailablePassengers();
-                } else if (currentMeetingRole === 'individual') {
-                    // RESET INDIVIDUAL UI (DEFENSIVAMENTE)
-                    const btnIndConfirm = document.getElementById('btn-individual-confirm');
-                    const infoIndConfirmed = document.getElementById('individual-confirmed');
-                    if (btnIndConfirm) btnIndConfirm.classList.remove('hidden');
-                    if (infoIndConfirmed) infoIndConfirmed.classList.add('hidden');
-
-                    showMeetingView('meeting-individual');
-                }
+                showToast('Local confirmado!', 'success');
             } catch (e) {
                 showToast('Erro ao confirmar local: ' + e.message, 'error');
             }
         }
 
-        // ── PASSENGER FLOW (ACTION) ───────────────────────────
-        function cancelPassengerWaiting() {
-            if (!currentVendorUid) return;
-            showConfirmDialog('Sair da fila?', 'Deseja realmente cancelar sua participação?', async () => {
-                try {
-                    const snap = await supabase.database().ref(`meeting/participants/${currentVendorUid}`).once('value');
-                    const d = snap.val();
-                    if (d?.driverUid) {
-                        await supabase.database().ref(`meeting/driverPickups/${d.driverUid}/${currentVendorUid}`).remove();
-                        await supabase.database().ref(`meeting/notifications/${d.driverUid}`).set({
-                            type: 'passengerCancelled', passengerUid: currentVendorUid,
-                            passengerName: currentVendorName, handled: false, timestamp: Date.now()
-                        });
-                    }
-                    await MeetingHardReset();
-                    showToast('Participação cancelada.', 'info');
-                } catch (e) { showToast('Erro: ' + e.message, 'error'); }
+
+        // ──────────────────────────────────────────────────────────────────
+        //  PRESENÇA UNIVERSAL (Raio de 150m)
+        // ──────────────────────────────────────────────────────────────────
+        async function updateUniversalPresence() {
+            if (!meetingLocationData || !lastLat || !lastLon) return;
+
+            // Se já confirmou ou está em fases finais, ignora
+            try {
+                const snap = await supabase.database().ref(`meeting/participants/${currentVendorUid}`).once('value');
+                const p = snap.val();
+                if (!p || p.presenceConfirmed || p.phase === 'done' || p.phase === 'return') {
+                    ['btn-individual-confirm', 'btn-passenger-confirm-presence', 'btn-driver-confirm-presence'].forEach(id => {
+                        const b = document.getElementById(id); if (b) b.classList.add('hidden');
+                    });
+                    return;
+                }
+            } catch (_) {}
+
+            const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
+            const isNear = dist <= 150;
+
+            const btnIds = ['btn-individual-confirm', 'btn-passenger-confirm-presence', 'btn-driver-confirm-presence'];
+            btnIds.forEach(id => {
+                const b = document.getElementById(id);
+                if (b) {
+                    b.classList.toggle('hidden', !isNear);
+                    b.disabled = !isNear;
+                    b.style.opacity = isNear ? '1' : '0.5';
+                }
             });
+
+            if (currentMeetingRole === 'passenger' && isNear) {
+                const statusEl = document.getElementById('passenger-reunion-status');
+                if (statusEl) statusEl.classList.remove('hidden');
+            }
         }
 
-        function showConfirmDialog(title, text, onConfirm) {
-            const modal = document.createElement('div');
-            modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:9000; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(8px);';
-            modal.innerHTML = `
-                <div class="glass-panel" style="width:100%; max-width:340px; padding:24px; text-align:center; border:1px solid var(--border);">
-                    <div style="font-weight:700; font-size:1.1rem; margin-bottom:8px;">${title}</div>
-                    <div style="font-size:0.85rem; color:var(--muted); margin-bottom:24px;">${text}</div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                        <button id="conf-no" class="btn btn-secondary">Não</button>
-                        <button id="conf-yes" class="btn btn-primary" style="background:var(--danger); border-color:var(--danger);">Sim, sair</button>
-                    </div>
-                </div>`;
-            document.body.appendChild(modal);
-            document.getElementById('conf-no').onclick = () => modal.remove();
-            document.getElementById('conf-yes').onclick = () => { modal.remove(); onConfirm(); };
-            lucide.createIcons();
+
+        // ──────────────────────────────────────────────────────────────────
+        //  FLUXO CARONA: Monitora Motorista
+        // ──────────────────────────────────────────────────────────────────
+        function listenForDriverInfo(driverUid) {
+            currentDriverUid = driverUid;
+            const db = supabase.database();
+
+            if (driverInfoListener) db.ref(`vendedores/${driverUid}`).off('value', driverInfoListener);
+            driverInfoListener = db.ref(`vendedores/${driverUid}`).on('value', snap => {
+                const d = snap.val(); if (!d) return;
+
+                const nameEl = document.getElementById('passenger-driver-name');
+                if (nameEl) nameEl.textContent = 'Motorista: ' + (d.name || 'Identificando...');
+
+                if (d.lat && lastLat) {
+                    const dist = calcDistance(lastLat, lastLon, d.lat, d.lon || d.lng);
+                    const eta  = Math.max(1, Math.round((dist / 1000) / 35 * 60)); // Estimativa simples 35km/h
+                    const etaEl = document.getElementById('passenger-eta-text');
+                    if (etaEl) etaEl.textContent = `🚗 Motorista a ${Math.round(dist)}m — ETA ~${eta} min`;
+                }
+            });
+
+            if (passengerStateListener) db.ref(`meeting/participants/${currentVendorUid}`).off('value', passengerStateListener);
+            passengerStateListener = db.ref(`meeting/participants/${currentVendorUid}`).on('value', snap => {
+                const data = snap.val(); if (!data) return;
+
+                const statusEl = document.getElementById('passenger-embark-status');
+                const wrap     = document.getElementById('passenger-driver-chat-wrap');
+
+                if (data.embarkStatus !== 'waiting' && wrap) wrap.style.display = 'flex';
+
+                const msgs = {
+                    accepted_ride:    '✓ Viagem confirmada! Aguarde o motorista.',
+                    boarding_pending: '⏳ O motorista está chegando. Prepare-se.',
+                    boarded:          '✅ Você embarcou! A caminho da reunião.',
+                    finished:         '🏁 Viagem concluída.',
+                };
+
+                if (statusEl) {
+                    statusEl.innerHTML = `<div style="color:var(--gold); font-weight:700;">${msgs[data.embarkStatus] || 'Acompanhe pelo mapa.'}</div>`;
+                }
+
+                if (data.embarkStatus === 'boarded' || data.presenceConfirmed) {
+                    updateUniversalPresence();
+                }
+            });
+
+            listenForMeetingChatMessages(driverUid);
         }
 
-        // ── DRIVER FLOW (ACTION) ──────────────────────────────
-        async function loadAvailablePassengers() {
+
+        // ──────────────────────────────────────────────────────────────────
+        //  FLUXO MOTORISTA: Carregar Passageiros Disponíveis
+        // ──────────────────────────────────────────────────────────────────
+        function loadAvailablePassengers() {
             const container = document.getElementById('available-passengers-list');
-            if (!container || !meetingLocationData) return;
-            container.innerHTML = '<div class="empty-state"><p>Buscando caronas...</p></div>';
-            
+            if (!container) return;
+
             if (availablePassengersListener) supabase.database().ref('meeting/participants').off('value', availablePassengersListener);
             availablePassengersListener = supabase.database().ref('meeting/participants').on('value', snap => {
                 const all = snap.val() || {};
-                const waiting = Object.values(all).filter(p => 
-                    p.role === 'passenger' && p.embarkStatus === 'waiting' && 
-                    p.locationId === meetingLocationData.id && p.uid !== currentVendorUid
-                );
-                container.innerHTML = '';
-                if (waiting.length === 0) {
-                    container.innerHTML = '<div class="empty-state"><p>Ninguém aguardando no momento.</p></div>';
-                } else {
-                    waiting.forEach(p => {
-                        const isSelected = selectedPassengers.some(s => s.uid === p.uid);
-                        const dist = (p.lat && lastLat) ? Math.round(calcDistance(lastLat, lastLon, p.lat, p.lng)) : null;
-                        const div = document.createElement('div');
-                        div.className = 'driver-item' + (isSelected ? ' selected' : '');
-                        div.style.cssText = 'background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; cursor:pointer;';
-                        div.onclick = () => togglePassengerSelection(p);
-                        div.innerHTML = `<div><div style="font-weight:600;">${p.name}</div><div style="font-size:0.7rem; color:var(--muted);">${dist ? dist+'m de distância' : 'GPS inativo'}</div></div><i data-lucide="${isSelected ? 'check-circle' : 'circle'}" style="color:${isSelected ? 'var(--gold)' : 'var(--muted)'};"></i>`;
-                        container.appendChild(div);
-                    });
+                const list = Object.values(all).filter(p => {
+                    return p.role === 'passenger' && p.embarkStatus === 'waiting' &&
+                           p.locationId === meetingLocationData.id && p.uid !== currentVendorUid;
+                });
+                if (list.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><p>Nenhum carona esperando.</p></div>';
+                    return;
                 }
-                lucide.createIcons();
+                container.innerHTML = '';
+                list.forEach(p => {
+                    const isSelected = selectedPassengers.some(s => s.uid === p.uid);
+                    const div = document.createElement('div');
+                    div.style.cssText = `background:${isSelected?'var(--gold-light)':'var(--surface2)'};border:1px solid ${isSelected?'var(--gold)':'var(--border)'};padding:14px;border-radius:12px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;transition:all 0.2s;`;
+                    div.innerHTML = `<div style="flex:1;"><div style="font-weight:600;">${p.name}</div><div style="font-size:0.7rem;color:var(--muted);margin-top:2px;">Aguardando...</div></div><button onclick="togglePassengerSelection('${p.uid}','${p.name}')" style="background:${isSelected?'var(--danger)':'var(--gold)'};color:${isSelected?'#fff':'var(--bg)'};border:none;padding:6px 12px;border-radius:8px;font-size:0.75rem;font-weight:700;cursor:pointer;">${isSelected?'Remover':'Selecionar'}</button>`;
+                    container.appendChild(div);
+                });
             });
         }
 
-        function togglePassengerSelection(p) {
-            const idx = selectedPassengers.findIndex(s => s.uid === p.uid);
-            const limit = VEHICLE_CAPACITY[driverVehicleType] || 4;
-            if (idx >= 0) selectedPassengers.splice(idx, 1);
+        function togglePassengerSelection(uid, name) {
+            const idx = selectedPassengers.findIndex(p => p.uid === uid);
+            const max = VEHICLE_CAPACITY[driverVehicleType] || 4;
+            if (idx > -1) selectedPassengers.splice(idx, 1);
             else {
-                if (selectedPassengers.length >= limit) { showToast(`Limite de ${limit} lugar(es) excedido.`, 'error'); return; }
-                selectedPassengers.push(p);
+                if (selectedPassengers.length >= max) { showToast(`Limite de ${max} carona(s) excedido.`, 'error'); return; }
+                selectedPassengers.push({ uid, name });
             }
             updateSeatIndicator();
             const sc = document.getElementById('selected-count');
@@ -3882,135 +3718,85 @@
             loadAvailablePassengers();
         }
 
-        async function autoSuggestPassengers() {
-            if (!lastLat) { showToast('GPS inativo.', 'error'); return; }
-            try {
-                const snap = await supabase.database().ref('meeting/participants').once('value');
-                const all = snap.val() || {};
-                const waiting = Object.values(all).filter(p => 
-                    p.role === 'passenger' && p.embarkStatus === 'waiting' && 
-                    p.locationId === meetingLocationData.id && p.uid !== currentVendorUid && p.lat
-                );
-                if (waiting.length === 0) { showToast('Ninguém próximo com GPS ativo.', 'info'); return; }
-                waiting.forEach(p => p.dist = calcDistance(lastLat, lastLon, p.lat, p.lng));
-                waiting.sort((a, b) => a.dist - b.dist);
-                const limit = VEHICLE_CAPACITY[driverVehicleType] || 4;
-                selectedPassengers = waiting.slice(0, limit);
-                updateSeatIndicator();
-                loadAvailablePassengers();
-                showToast(`${selectedPassengers.length} carona(s) sugeridas por proximidade.`, 'success');
-            } catch (e) { showToast('Erro na sugestão: ' + e.message, 'error'); }
-        }
-
         async function startDriverRoute() {
             if (selectedPassengers.length === 0) return;
             try {
                 const db = supabase.database();
-                const meetDate = new Date().toISOString().split('T')[0];
-                
-                await db.ref(`meeting/history/${meetDate}/${currentVendorUid}`).set({
-                    driverUid: currentVendorUid, driverName: currentVendorName,
-                    vehicleType: driverVehicleType, startedAt: Date.now(),
-                    passengers: selectedPassengers.map(p => ({ uid: p.uid, name: p.name, status: 'invited' }))
-                });
-
+                const now = Date.now();
+                await db.ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'in_route' });
                 for (const p of selectedPassengers) {
-                    await db.ref(`meeting/notifications/${p.uid}`).set({
-                        type: 'pickup_request', driverUid: currentVendorUid,
-                        driverName: currentVendorName, handled: false, timestamp: Date.now()
-                    });
-                    await db.ref(`meeting/participants/${p.uid}`).update({ driverUid: currentVendorUid, embarkStatus: 'selected' });
+                    await db.ref(`meeting/notifications/${p.uid}`).set({ type: 'pickup_request', driverUid: currentVendorUid, driverName: currentVendorName, handled: false, timestamp: now });
+                    await db.ref(`meeting/participants/${p.uid}`).update({ embarkStatus: 'invitePending', driverUid: currentVendorUid });
                     await db.ref(`meeting/driverPickups/${currentVendorUid}/${p.uid}`).set({ uid: p.uid, name: p.name, status: 'accepted_ride' });
                 }
-
-                await db.ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'in_route' });
                 showMeetingView('meeting-driver-route');
                 loadPickupList();
                 showToast('Rota iniciada! Convites enviados.', 'success');
             } catch (e) { showToast('Erro ao iniciar rota: ' + e.message, 'error'); }
         }
 
-        function cancelDriver() {
-            showConfirmDialog('Cancelar Rota?', 'Deseja realmente cancelar a viagem?', async () => {
-                await MeetingHardReset();
-                showToast('Rota cancelada.', 'info');
-            });
-        }
 
         // ── DRIVER PICKUP/DROPOFF ────────────────────────────
         function loadPickupList() {
             const container = document.getElementById('driver-pickup-list');
+            if (!container) return;
             if (pickupListListener) supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).off('value', pickupListListener);
             pickupListListener = supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).on('value', snap => {
                 const pickups = Object.values(snap.val() || {});
-                container.innerHTML = pickups.length ? '' : '<div class="empty-state"><p>Aguardando aceite dos caronas...</p></div>';
+                container.innerHTML = pickups.length ? '' : '<div class="empty-state"><p>Sem caronas na lista.</p></div>';
                 pickups.forEach(p => {
-                    const div = document.createElement('div');
-                    div.className = 'passenger-item';
-                    div.style.cssText = 'background:var(--surface2); padding:14px; border-radius:12px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;';
                     const isBoarded = p.status === 'boarded';
-                    div.innerHTML = `
-                        <div style="flex:1;">
-                            <div style="font-weight:600;">${p.name}</div>
-                            <div style="display:flex; gap:8px; margin-top:6px;">
-                                <button class="btn-chat-small" onclick="openMeetingChat('${p.uid}','${p.name}')" id="dot-chat-${p.uid}" style="position:relative; background:var(--glass); border:1px solid var(--border); padding:4px 10px; border-radius:6px; font-size:0.7rem; color:var(--text); cursor:pointer;">💬 Chat</button>
-                                ${!isBoarded ? `<button onclick="driverPickedUp('${p.uid}','${p.name}')" style="background:var(--gold); border:none; padding:4px 10px; border-radius:6px; font-size:0.7rem; color:var(--bg); font-weight:700; cursor:pointer;">Confirmar Embarque</button>` : ''}
-                            </div>
-                        </div>
-                        <span style="font-size:0.7rem; padding:4px 8px; border-radius:4px; font-weight:700; background:${isBoarded ? 'rgba(34,197,94,0.15)' : 'rgba(191,154,86,0.15)'}; color:${isBoarded ? '#22c55e' : 'var(--gold)'};">${isBoarded ? 'A BORDO' : 'PENDENTE'}</span>
-                    `;
+                    const isAccepted = p.status === 'accepted_ride';
+                    const div = document.createElement('div');
+                    div.style.cssText = 'background:var(--surface2); padding:14px; border-radius:12px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;';
+                    div.innerHTML = `<div style="flex:1;"><div style="font-weight:600;">${p.name}</div><div style="display:flex; gap:8px; margin-top:6px;"><button class="btn-chat-small" onclick="openMeetingChat('${p.uid}','${p.name}')" id="dot-chat-${p.uid}" style="background:var(--glass); border:1px solid var(--border); padding:4px 10px; border-radius:6px; font-size:0.7rem; color:var(--text); cursor:pointer;">💬 Chat</button>${!isBoarded && isAccepted ? `<button onclick="driverRequestBoarding('${p.uid}','${p.name}')" style="background:var(--gold); border:none; padding:4px 10px; border-radius:6px; font-size:0.7rem; color:var(--bg); font-weight:700; cursor:pointer;">Solicitar Embarque</button>` : ''}</div></div><div style="text-align:right;"><span style="font-size:0.65rem; padding:4px 8px; border-radius:4px; font-weight:700; background:${isBoarded ? 'rgba(16,185,129,0.1)' : 'rgba(191,154,86,0.1)'}; color:${isBoarded ? 'var(--success)' : 'var(--gold)'};">${isBoarded ? 'A BORDO' : 'PENDENTE'}</span></div>`;
                     container.appendChild(div);
                     listenForMeetingChatMessages(p.uid);
                 });
-                lucide.createIcons();
                 updateUniversalPresence();
             });
         }
 
-        async function driverPickedUp(pUid, pName) {
+        async function driverRequestBoarding(pUid, pName) {
             try {
                 await supabase.database().ref(`meeting/notifications/${pUid}`).set({ type: 'boardingrequest', driverUid: currentVendorUid, driverName: currentVendorName, handled: false, timestamp: Date.now() });
-                showToast(`Solicitado confirmação de embarque para ${pName}.`, 'success');
+                await supabase.database().ref(`meeting/participants/${pUid}`).update({ embarkStatus: 'boarding_pending' });
+                showToast(`Solicitado embarque para ${pName}.`, 'success');
             } catch (e) { showToast('Erro: ' + e.message, 'error'); }
         }
 
+
         async function individualConfirmPresence() {
             if (!meetingLocationData || !lastLat) return;
-            const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
-            if (dist > 150) { showToast(`Muito longe do local (${Math.round(dist)}m).`, 'error'); return; }
             try {
                 const today = new Date().toISOString().split('T')[0];
                 await supabase.database().ref(`meeting/attendance/${today}/${currentVendorUid}`).set({ name: currentVendorName, role: 'individual', locationId: meetingLocationData.id, locationName: meetingLocationData.name, confirmedAt: Date.now() });
                 await supabase.database().ref(`meeting/participants/${currentVendorUid}`).update({ presenceConfirmed: true, phase: 'done' });
-                document.getElementById('btn-individual-confirm').classList.add('hidden');
-                document.getElementById('individual-confirmed').classList.remove('hidden');
+                document.getElementById('btn-individual-confirm')?.classList.add('hidden');
+                document.getElementById('individual-confirmed')?.classList.remove('hidden');
                 showToast('Presença confirmada!', 'success');
             } catch (e) { showToast('Erro: ' + e.message, 'error'); }
         }
 
         async function passengerConfirmPresence() {
             if (!meetingLocationData || !lastLat) return;
-            const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
-            if (dist > 150) { showToast(`Muito longe (${Math.round(dist)}m).`, 'error'); return; }
             try {
                 const today = new Date().toISOString().split('T')[0];
                 await supabase.database().ref(`meeting/attendance/${today}/${currentVendorUid}`).set({ name: currentVendorName, role: 'passenger', driverUid: currentDriverUid, locationName: meetingLocationData.name, timestamp: Date.now() });
                 await supabase.database().ref(`meeting/participants/${currentVendorUid}`).update({ presenceConfirmed: true });
-                document.getElementById('btn-passenger-confirm-presence').classList.add('hidden');
-                document.getElementById('passenger-reunion-status').classList.remove('hidden');
+                document.getElementById('btn-passenger-confirm-presence')?.classList.add('hidden');
+                document.getElementById('passenger-reunion-status')?.classList.remove('hidden');
                 showToast('Presença confirmada!', 'success');
             } catch (e) { showToast('Erro: ' + e.message, 'error'); }
         }
 
         async function driverConfirmPresence() {
             if (!meetingLocationData || !lastLat) return;
-            const dist = calcDistance(lastLat, lastLon, meetingLocationData.lat, meetingLocationData.lng);
-            if (dist > 150) { showToast(`Muito longe (${Math.round(dist)}m).`, 'error'); return; }
             try {
                 const today = new Date().toISOString().split('T')[0];
                 await supabase.database().ref(`meeting/attendance/${today}/${currentVendorUid}`).set({ name: currentVendorName, role: 'driver', locationName: meetingLocationData.name, confirmedAt: Date.now() });
                 await supabase.database().ref(`meeting/participants/${currentVendorUid}`).update({ phase: 'meeting', presenceConfirmed: true });
-                document.getElementById('btn-driver-confirm-presence').classList.add('hidden');
+                document.getElementById('btn-driver-confirm-presence')?.classList.add('hidden');
                 showDriverMeetingInProgress();
                 showToast('Presença confirmada!', 'success');
             } catch (e) { showToast('Erro: ' + e.message, 'error'); }
@@ -4019,9 +3805,8 @@
         function showDriverMeetingInProgress() {
             const div = document.getElementById('driver-meeting-in-progress');
             if (div) div.classList.remove('hidden');
-            const btns = ['btn-driver-confirm-presence','btn-confirm-all-presence'];
-            btns.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
         }
+
 
         async function endMeeting() {
             try {
@@ -4038,49 +3823,61 @@
 
         async function loadDropoffList() {
             const container = document.getElementById('driver-dropoff-list');
+            if (!container) return;
             const snap = await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
             const pickups = Object.values(snap.val() || {}).filter(p => p.status === 'boarded' || p.status === 'finished');
-            container.innerHTML = pickups.length ? '' : '<p>Todos entregues.</p>';
+            if (pickups.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>Todos entregues.</p></div>';
+                document.getElementById('btn-driver-arrived-home')?.classList.remove('hidden');
+                return;
+            }
+            container.innerHTML = '';
             pickups.forEach(p => {
                 const isFinished = p.status === 'finished';
                 const div = document.createElement('div');
-                div.className = 'passenger-item';
                 div.style.cssText = 'background:var(--surface2); padding:14px; border-radius:12px; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;';
-                div.innerHTML = `<div><div style="font-weight:600;">${p.name}</div></div>${!isFinished ? `<button onclick="driverDropOff('${p.uid}','${p.name}')" style="background:var(--gold); border:none; padding:6px 12px; border-radius:6px; font-size:0.75rem; color:var(--bg); font-weight:700; cursor:pointer;">Confirmar Desembarque</button>` : '<span style="color:#22c55e; font-size:0.75rem; font-weight:700;">ENTREGUE ✓</span>'}`;
+                div.innerHTML = `<div><div style="font-weight:600;">${p.name}</div></div>${!isFinished ? `<button onclick="driverRequestDropOff('${p.uid}','${p.name}')" style="background:var(--gold); border:none; padding:8px 14px; border-radius:8px; font-size:0.75rem; color:var(--bg); font-weight:700; cursor:pointer;">Confirmar Desembarque</button>` : '<span style="color:var(--success); font-weight:700; font-size:0.75rem;">ENTREGUE ✓</span>'}`;
                 container.appendChild(div);
             });
-            if (pickups.every(p => p.status === 'finished')) document.getElementById('btn-driver-arrived-home').classList.remove('hidden');
+            if (pickups.every(p => p.status === 'finished')) document.getElementById('btn-driver-arrived-home')?.classList.remove('hidden');
         }
 
-        async function driverDropOff(pUid, pName) {
+        async function driverRequestDropOff(pUid, pName) {
             try {
                 await supabase.database().ref(`meeting/notifications/${pUid}`).set({ type: 'dropoff_request', driverUid: currentVendorUid, driverName: currentVendorName, handled: false, timestamp: Date.now() });
-                showToast(`Solicitado confirmação de desembarque para ${pName}.`, 'success');
+                showToast(`Solicitado desembarque para ${pName}.`, 'success');
             } catch (e) { showToast('Erro: ' + e.message, 'error'); }
         }
 
         async function driverArrivedHome() {
             const snap = await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).once('value');
-            const pickups = Object.values(snap.val() || {});
-            const totalKm = 17.5;
-            const reimbursement = totalKm * REIMBURSEMENT_RATE[driverVehicleType];
-            
-            showConfirmDialog('Finalizar Viagem?', `Total: ${totalKm}km | Reembolso: R$ ${reimbursement.toFixed(2)}`, async () => {
+            const pickups = Object.values(snap.val() || {}).filter(p => p.status === 'finished');
+            const totalKm = 15.0 + (pickups.length * 2.5);
+            const reimbursement = totalKm * (REIMBURSEMENT_RATE[driverVehicleType] || 0.90);
+            showConfirmDialog('Finalizar Viagem?', `<strong>Resumo:</strong><br>Distância: ${totalKm.toFixed(1)}km<br>Reembolso: R$ ${reimbursement.toFixed(2)}`, async () => {
+                const today = new Date().toISOString().split('T')[0];
+                await supabase.database().ref(`meeting/history/${today}/${currentVendorUid}`).set({ driverUid: currentVendorUid, driverName: currentVendorName, vehicleType: driverVehicleType, totalKm, reimbursement, passengers: pickups, timestamp: Date.now() });
                 await MeetingHardReset();
-                showToast('Viagem concluída com sucesso!', 'success');
+                showToast('Viagem concluída!', 'success');
             });
         }
 
-        // ── MEETING CHAT (REALTIME) ──────────────────────────
+
+        // ──────────────────────────────────────────────────────────────────
+        //  MEETING CHAT (REALTIME)
+        // ──────────────────────────────────────────────────────────────────
         function listenForMeetingChatMessages(partnerUid) {
             const today = new Date().toISOString().split('T')[0];
             const roomKey = today + '_' + [currentVendorUid, partnerUid].sort().join('_');
-            supabase.database().ref(`meeting/chats/${roomKey}`).on('value', snap => {
-                const msgs = snap.val() || {};
-                const all = Object.values(msgs);
-                const total = all.length;
+
+            if (meetingChatListener) supabase.database().ref(`meeting/chats/${roomKey}`).off('value', meetingChatListener);
+            meetingChatListener = supabase.database().ref(`meeting/chats/${roomKey}`).on('value', snap => {
+                const snapVal = snap.val() || {};
+                const msgs = Object.values(snapVal);
+                const total = msgs.length;
+
                 if (total > (roomCounts[roomKey] || 0)) {
-                    const last = all[total - 1];
+                    const last = msgs[total - 1];
                     if (last.senderUid !== currentVendorUid) {
                         const isModalOpen = (document.getElementById('meeting-chat-modal').style.display === 'flex' && meetingChatPartnerUid === partnerUid);
                         if (!isModalOpen) {
@@ -4091,35 +3888,41 @@
                     }
                 }
                 roomCounts[roomKey] = total;
+
                 if (meetingChatPartnerUid === partnerUid) {
                     const container = document.getElementById('meeting-chat-messages');
-                    container.innerHTML = all.map(m => {
+                    container.innerHTML = msgs.map(m => {
                         const isMe = m.senderUid === currentVendorUid;
-                        return `<div style="max-width:80%; padding:10px 14px; border-radius:16px; margin-bottom:8px; align-self:${isMe ? 'flex-end':'flex-start'}; background:${isMe ? 'var(--gold)':'var(--surface2)'}; color:${isMe ? 'var(--bg)':'var(--text)'}; font-size:0.88rem;">${m.text}</div>`;
+                        return `<div style="max-width:80%; padding:10px 14px; border-radius:16px; margin-bottom:8px; align-self:${isMe?'flex-end':'flex-start'}; background:${isMe?'var(--gold)':'var(--surface2)'}; color:${isMe?'var(--bg)':'var(--text)'}; font-size:0.88rem;">${m.text}<div style="font-size:0.6rem;opacity:0.5;margin-top:4px;text-align:right;">${new Date(m.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div></div>`;
                     }).join('');
                     container.scrollTop = container.scrollHeight;
                 }
             });
         }
 
+
         function openMeetingChat(partnerUid, partnerName) {
             meetingChatPartnerUid = partnerUid;
             document.getElementById(`dot-chat-${partnerUid}`)?.classList.remove('active');
-            if (partnerUid === currentDriverUid) document.getElementById('btn-passenger-chat-driver')?.classList.remove('active');
+            if (partnerUid === currentDriverUid) {
+                const btnChat = document.getElementById('btn-passenger-chat-driver');
+                if (btnChat) btnChat.classList.remove('active');
+            }
             document.getElementById('meeting-chat-title').textContent = partnerName;
             document.getElementById('meeting-chat-modal').style.display = 'flex';
-            const today = new Date().toISOString().split('T')[0];
-            const roomKey = today + '_' + [currentVendorUid, partnerUid].sort().join('_');
-            supabase.database().ref(`meeting/chats/${roomKey}`).once('value', snap => {
-                const msgs = Object.values(snap.val() || {});
-                const container = document.getElementById('meeting-chat-messages');
-                container.innerHTML = msgs.map(m => {
-                    const isMe = m.senderUid === currentVendorUid;
-                    return `<div style="max-width:80%; padding:10px 14px; border-radius:16px; margin-bottom:8px; align-self:${isMe ? 'flex-end':'flex-start'}; background:${isMe ? 'var(--gold)':'var(--surface2)'}; color:${isMe ? 'var(--bg)':'var(--text)'}; font-size:0.88rem;">${m.text}</div>`;
-                }).join('');
-                container.scrollTop = container.scrollHeight;
-            });
+            const container = document.getElementById('meeting-chat-messages');
+            if (container) container.scrollTop = container.scrollHeight;
         }
+
+
+
+
+
+        function closeMeetingChat() {
+            meetingChatPartnerUid = null;
+            document.getElementById('meeting-chat-modal').style.display = 'none';
+        }
+
 
         async function sendMeetingChatMessage() {
             const input = document.getElementById('meeting-chat-input');
@@ -4131,85 +3934,20 @@
             input.value = '';
         }
 
-        function closeMeetingChat() {
-            const today = new Date().toISOString().split('T')[0];
-            const roomKey = meetingChatPartnerUid
-                ? today + '_' + [currentVendorUid, meetingChatPartnerUid].sort().join('_')
-                : null;
-            if (roomKey && meetingChatListener) {
-                supabase.database().ref(`meeting/chats/${roomKey}`).off('value', meetingChatListener);
-                meetingChatListener = null;
-            }
-
-            // Remove red dot when opening/closing chat with this partner
-            if (meetingChatPartnerUid) {
-                document.getElementById(`dot-chat-${meetingChatPartnerUid}`)?.classList.remove('active');
-                if (meetingChatPartnerUid === currentDriverUid) {
-                    document.getElementById('btn-passenger-chat-driver')?.classList.remove('active');
-                }
-            }
-
-            meetingChatPartnerUid = null;
-            document.getElementById('meeting-chat-modal').style.display = 'none';
-
-            // ✅ Remove alerta visual se existir
-            const alert = document.getElementById('meeting-chat-alert');
-            if (alert) alert.remove();
-            lastMeetingMsgCount = 0; // Reseta contador
+        function calcDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         }
 
-        // ── MEETING CHAT (REALTIME) ──────────────────────────
-        function listenForMeetingChatMessages(partnerUid) {
-            const today = new Date().toISOString().split('T')[0];
-            const roomKey = today + '_' + [currentVendorUid, partnerUid].sort().join('_');
-
-            supabase.database().ref(`meeting/chats/${roomKey}`).on('value', snap => {
-                const msgs = snap.val();
-                if (!msgs) return;
-
-                // Se chegou mensagem nova e o modal está fechado, mostra alerta e ativa bolinha
-                if (total > (roomCounts[roomKey] || 0)) {
-                    const last = allMsgs[total - 1];
-                    if (last.senderUid !== currentVendorUid) {
-                        const isModalOpen = (document.getElementById('meeting-chat-modal').style.display === 'flex' && meetingChatPartnerUid === partnerUid);
-                        if (!isModalOpen) {
-                            showGlobalNotification(last.senderName, last.text, 'meeting', { uid: partnerUid, name: last.senderName });
-                            // Ativa bolinha no item da lista ou no botão do carona
-                            document.getElementById(`dot-chat-${partnerUid}`)?.classList.add('active');
-                            if (partnerUid === currentDriverUid) document.getElementById('btn-passenger-chat-driver')?.classList.add('active');
-                        }
-                    }
-                }
-
-                roomCounts[roomKey] = total;
-
-                // Se o modal já estiver aberto, atualiza as mensagens em tempo real
-                if (meetingChatPartnerUid === partnerUid) {
-                    const container = document.getElementById('meeting-chat-messages');
-                    container.innerHTML = '';
-                    allMsgs.forEach(m => {
-                        const isMe = m.senderUid === currentVendorUid;
-                        const bubble = document.createElement('div');
-                        bubble.style.cssText = `
-                  max-width: 80%; padding: 10px 14px; border-radius: 16px;
-                  font-size: 0.88rem; line-height: 1.45; word-wrap: break-word;
-                  align-self: ${isMe ? 'flex-end' : 'flex-start'};
-                  background: ${isMe ? 'var(--gold)' : 'var(--surface2)'};
-                  color: ${isMe ? 'var(--bg)' : 'var(--text)'};
-                  ${isMe ? 'border-bottom-right-radius:4px;' : 'border-bottom-left-radius:4px;'}
-                `;
-                        bubble.innerHTML = `
-                  <div>${m.text}</div>
-                  <span style="font-size:0.6rem;opacity:0.6;margin-top:4px;display:block;text-align:right;">
-                    ${new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                `;
-                        container.appendChild(bubble);
-                    });
-                    container.scrollTop = container.scrollHeight;
-                }
-            });
+        function showConfirmDialog(title, html, onConfirm) {
+            if (typeof showNotification === 'function') showNotification('gold', 'help-circle', title, html, onConfirm, () => {});
+            else if(confirm(title + "\n\n" + html.replace(/<[^>]*>?/gm, ''))) onConfirm();
         }
+
+
 
         supportListListener = null;
         function initSupportMessageListener(uid) {
