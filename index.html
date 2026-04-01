@@ -4357,9 +4357,9 @@
 
                 await supabase.database().ref(`meeting/driverPickups/${currentVendorUid}`).remove();
 
-                if (passengersListener) {
-                    supabase.database().ref('meeting/participants').off('value', passengersListener);
-                    passengersListener = null;
+                if (availablePassengersListener) {
+                    supabase.database().ref('meeting/participants').off('value', availablePassengersListener);
+                    availablePassengersListener = null;
                 }
 
                 currentMeetingRole = null;
@@ -4371,6 +4371,82 @@
                 showToast('Erro ao cancelar: ' + e.message, 'error');
             } finally {
                 showLoading(false);
+            }
+        }
+
+        async function cancelPassengerWaiting() {
+            const confirmed = await showConfirmDialog('Cancelar Participação?', 'Deseja realmente cancelar sua espera por carona?');
+            if (!confirmed) return;
+
+            try {
+                showLoading(true);
+                if (currentVendorUid) {
+                    await supabase.database().ref(`meeting/participants/${currentVendorUid}`).remove();
+                }
+                await MeetingHardReset();
+                showMeetingView('meeting-role-select');
+                showToast('Espera cancelada.', 'info');
+            } catch (e) {
+                showToast('Erro ao cancelar: ' + e.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function setDriverVehicle(type) {
+            driverVehicleType = type;
+            const max = VEHICLE_CAPACITY[type] || 4;
+            const capLimit = document.getElementById('capacity-limit');
+            if (capLimit) capLimit.textContent = max;
+
+            // Ajusta visual dos botões de rádio (labels)
+            ['carro', 'moto'].forEach(v => {
+                const opt = document.getElementById('vehicle-opt-' + v);
+                if (opt) {
+                    opt.style.borderColor = (v === type) ? 'var(--gold)' : 'var(--border)';
+                    opt.style.background = (v === type) ? 'rgba(191,154,86,0.12)' : '';
+                }
+            });
+            updateSeatIndicator();
+        }
+
+        async function autoSuggestPassengers() {
+            const max = VEHICLE_CAPACITY[driverVehicleType] || 4;
+            showLoading(true);
+            try {
+                const snap = await supabase.database().ref('meeting/participants').once('value');
+                const all = snap.val() || {};
+                const list = Object.values(all).filter(p => {
+                    return p.role === 'passenger' && p.embarkStatus === 'waiting' &&
+                        p.locationId === meetingLocationData.id && p.uid !== currentVendorUid;
+                });
+
+                if (list.length === 0) {
+                    showToast('Nenhum carona disponível no momento.', 'info');
+                    return;
+                }
+
+                // Ordena por proximidade (se houver GPS)
+                list.sort((a, b) => {
+                    const distA = calcDistance(lastLat, lastLon, a.lat, a.lng);
+                    const distB = calcDistance(lastLat, lastLon, b.lat, b.lng);
+                    return distA - distB;
+                });
+
+                selectedPassengers = list.slice(0, max).map(p => ({ uid: p.uid, name: p.name }));
+                updateSeatIndicator();
+                const sc = document.getElementById('selected-count');
+                if (sc) sc.textContent = selectedPassengers.length;
+                const btn = document.getElementById('btn-start-driver-route');
+                if (btn) btn.disabled = selectedPassengers.length === 0;
+                
+                loadAvailablePassengers();
+                showToast(`Sugeridos ${selectedPassengers.length} passageiros próximos.`, 'success');
+            } catch (e) {
+                showToast('Erro na sugestão: ' + e.message, 'error');
+            } finally {
+                showLoading(true);
+                setTimeout(() => showLoading(false), 500);
             }
         }
 
